@@ -7,5 +7,6 @@ namespace playground_check_service.Model
     public class PlaydeviceDetail
     {
         public PlaydeviceFeatureProperties properties { get; set; }
+                    = new PlaydeviceFeatureProperties();
     }
 }

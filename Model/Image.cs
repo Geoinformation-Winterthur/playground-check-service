@@ -6,6 +6,6 @@ namespace playground_check_service.Model
 {
     public class Image
     {
-        public string Data {get; set;}
+        public string Data {get; set;} = "";
     }
 }

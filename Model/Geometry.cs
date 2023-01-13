@@ -6,8 +6,8 @@ namespace playground_check_service.Model
 {
     public class Geometry
     {
-        public string type { get; set; }
-        public double[] coordinates { get; set; }
+        public string type { get; set; } = "";
+        public double[] coordinates { get; set; } = new double[0];
 
         public Geometry(){}
 
