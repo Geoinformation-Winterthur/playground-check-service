@@ -157,7 +157,7 @@ namespace playground_check_service.Controllers
             if (x != 0 && y != 0)
             {
                 HttpClient http = new HttpClient();
-                string requestUrl = "http://" + AppConfig.wmsUrl + "/wms/Spielplatzkarte?" +
+                string requestUrl = "http://" + AppConfig.wmsUrl + "Spielplatzkarte?" +
                 "LAYERS=AV_UEP_Landeskarten,Spielplatz&VERSION=1.1.1&DPI=96&TRANSPARENT=TRUE&FORMAT=image%2Fpng&" +
                 "SERVICE=WMS&REQUEST=GetMap&STYLES=&SRS=EPSG%3A2056&BBOX=" + (x - 10) + "," + (y - 5) + "," + (x + 10) + "," +
                 (y + 5) + "&WIDTH=800&HEIGHT=400";
