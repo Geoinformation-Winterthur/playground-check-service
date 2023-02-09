@@ -75,16 +75,30 @@ namespace playground_check_service.Controllers
                 pgConn.Open();
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
                 selectComm.CommandText = "SELECT DISTINCT ON (sp.name) " +
-                        "sp.name, insp.datum_inspektion " +
+                        "sp.name, insp.datum_inspektion, " +
+                        "(SELECT count(*) > 0 " +
+                        "FROM \"wgr_sp_insp_mangel\" mangel " +
+                        "JOIN \"wgr_sp_insp_bericht\" bericht ON mangel.tid_insp_bericht = bericht.tid " +
+                        "JOIN \"gr_v_spielgeraete\" geraete ON bericht.fid_spielgeraet = geraete.fid " +
+                        "WHERE geraete.fid_spielplatz = sp.fid " +
+                        "AND mangel.fid_erledigung IS NULL) AS geraet_hat_mangel, "+
+                        "(SELECT count(*) > 0 " +
+                        "FROM \"wgr_sp_insp_mangel\" mangel " +
+                        "JOIN \"wgr_sp_insp_bericht\" bericht ON mangel.tid_insp_bericht = bericht.tid " +
+                        "JOIN \"wgr_sp_geraetedetail\" detail ON bericht.fid_geraet_detail = detail.fid " +
+                        "JOIN \"gr_v_spielgeraete\" geraete ON detail.fid_spielgeraet = geraete.fid " +
+                        "WHERE geraete.fid_spielplatz = sp.fid "+
+                        "AND mangel.fid_erledigung IS NULL) AS detail_hat_mangel " +
                         "FROM \"wgr_sp_spielplatz\" sp " +
-                        "LEFT JOIN \"wgr_sp_inspektion\" insp ON insp.fid_spielplatz = sp.fid " +
+                        "LEFT JOIN \"wgr_sp_inspektion\" insp " +
+                        "ON insp.fid_spielplatz = sp.fid " +
                         "ORDER BY sp.name, insp.datum_inspektion DESC";
 
                 if (userMailAddress != null && inspectionType != null &&
                         !inspectionType.Equals("Keine Inspektion"))
                 {
                     selectComm.CommandText = "SELECT DISTINCT ON (sp.name) " +
-                        "sp.name, insp.datum_inspektion " +
+                        "sp.name, insp.datum_inspektion, false, false " +
                         "FROM \"wgr_sp_spielplatz\" sp " +
                         "JOIN \"wgr_sp_inspart_kontr\" ikt ON sp.fid = ikt.fid_spielplatz " +
                         "JOIN \"wgr_sp_kontrolleur\" kt ON kt.fid = ikt.fid_kontrolleur " +
@@ -111,6 +125,9 @@ namespace playground_check_service.Controllers
                             NpgsqlDate dateOfLastInspection = reader.GetDate(1);
                             resultPlayground.dateOfLastInspection = (DateTime)dateOfLastInspection;
                         }
+                        resultPlayground.hasOpenDeviceDefects = reader.GetBoolean(2);
+                        resultPlayground.hasOpenDeviceDetailDefects = reader.GetBoolean(3);
+
                         resultTemp.Add(resultPlayground);
                     }
                 }
