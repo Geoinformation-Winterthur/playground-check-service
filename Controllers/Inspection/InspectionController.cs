@@ -142,13 +142,21 @@ namespace playground_check_service.Controllers
                                     userFromDb, pgConn, dryRun);
                     }
 
-                    return Ok();
-                }
-                finally
-                {
                     NpgsqlCommand commitTrans = pgConn.CreateCommand();
                     commitTrans.CommandText = "COMMIT TRANSACTION";
                     commitTrans.ExecuteNonQuery();
+
+                    return Ok();
+                }
+                catch(Exception ex)
+                {                    
+                    NpgsqlCommand rollbackTrans = pgConn.CreateCommand();
+                    rollbackTrans.CommandText = "ROLLBACK TRANSACTION";
+                    rollbackTrans.ExecuteNonQuery();
+
+                    _logger.LogError(ex.Message);
+
+                    return StatusCode(500, "Internal server error");
                 }
 
             }
@@ -237,8 +245,10 @@ namespace playground_check_service.Controllers
             NpgsqlCommand insertInspectionCommand;
             insertInspectionCommand = pgConn.CreateCommand();
             insertInspectionCommand.CommandText = "INSERT INTO \"wgr_sp_inspektion\" " +
-                    "(id_inspektionsart, fid_spielplatz, datum_inspektion, fid_kontrolleur) " +
-                    "VALUES (@id_inspektionsart, @fid_spielplatz, @datum_inspektion, @fid_kontrolleur) RETURNING tid";
+                    "(tid, id_inspektionsart, fid_spielplatz, datum_inspektion, fid_kontrolleur) " +
+                    "VALUES ("+
+                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_inspektion\"), "+
+                    "@id_inspektionsart, @fid_spielplatz, @datum_inspektion, @fid_kontrolleur) RETURNING tid";
             insertInspectionCommand.Parameters.AddWithValue("id_inspektionsart",
                         inspectionTypeId != -1 ? inspectionTypeId : DBNull.Value);
             insertInspectionCommand.Parameters.AddWithValue("fid_spielplatz",
@@ -260,10 +270,12 @@ namespace playground_check_service.Controllers
             NpgsqlCommand insertInspectionReportCommand;
             insertInspectionReportCommand = pgConn.CreateCommand();
             insertInspectionReportCommand.CommandText = "INSERT INTO \"wgr_sp_insp_bericht\" " +
-                    "(tid_inspektion, fid_spielgeraet, fid_geraet_detail, inspektionsart, datum_inspektion, kontrolleur, pruefung_text, " +
+                    "(tid, tid_inspektion, fid_spielgeraet, fid_geraet_detail, inspektionsart, datum_inspektion, kontrolleur, pruefung_text, " +
                     "pruefung_erledigt, pruefung_kommentar, wartung_text, wartung_erledigung, " +
                     "wartung_kommentar, fallschutz) " +
-                    "VALUES (@tid_inspektion, @fid_spielgeraet, @fid_geraet_detail, @inspektionsart, @datum_inspektion, @kontrolleur, @pruefung_text, " +
+                    "VALUES (" +
+                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_bericht\"), "+
+                    "@tid_inspektion, @fid_spielgeraet, @fid_geraet_detail, @inspektionsart, @datum_inspektion, @kontrolleur, @pruefung_text, " +
                     "@pruefung_erledigt, @pruefung_kommentar, @wartung_text, @wartung_erledigung, " +
                     "@wartung_kommentar, @fallschutz) RETURNING tid";
             insertInspectionReportCommand.Parameters.AddWithValue("tid_inspektion",
