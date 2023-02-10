@@ -214,11 +214,13 @@ namespace playground_check_service.Model
 
             NpgsqlCommand insertDefectCommand = pgConn.CreateCommand();
             insertDefectCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel\" " +
-                    "(tid_insp_bericht, id_dringlichkeit, beschrieb, bemerkunng, " +
+                    "(tid, tid_insp_bericht, id_dringlichkeit, beschrieb, bemerkunng, " +
                     "picture1_base64, picture2_base64, picture3_base64, " +
                     "picture1_base64_thumb, picture2_base64_thumb, picture3_base64_thumb, " +
                     "datum_erledigung, fid_erledigung)" +
-                    "VALUES (@tid_inspektionsbericht, @dringlichkeit, @beschrieb, " +
+                    "VALUES (" +
+                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_mangel\"), "+
+                    "@tid_inspektionsbericht, @dringlichkeit, @beschrieb, " +
                     "@bemerkung, @picture1_base64, @picture2_base64, @picture3_base64, " +
                     "@picture1_base64_thumb, @picture2_base64_thumb, @picture3_base64_thumb, " +
                     "@datum_erledigung, @fid_erledigung)";
