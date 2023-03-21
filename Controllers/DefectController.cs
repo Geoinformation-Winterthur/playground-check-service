@@ -22,11 +22,19 @@ namespace playground_check_service.Controllers
     [Route("[controller]")]
     public class DefectController : ControllerBase
     {
+        private readonly ILogger<DefectController> _logger;
+
+        public DefectController(ILogger<DefectController> logger)
+        {
+            _logger = logger;
+        }
+
         // POST defect/
         [HttpPost]
         [Authorize]
-        public IActionResult Post([FromBody] Defect[] defects, bool dryRun = false)
+        public ActionResult<ErrorMessage> Post([FromBody] Defect[] defects, bool dryRun = false)
         {
+            ErrorMessage result = new ErrorMessage();
             User userFromDb = LoginController.getAuthorizedUser(this.User);
             if (userFromDb == null || userFromDb.fid == 0)
             {
@@ -36,13 +44,25 @@ namespace playground_check_service.Controllers
 
             if (defects != null)
             {
-                DefectDAO defectDao = new DefectDAO();
-                foreach (Defect defect in defects)
+                try
                 {
-                    defectDao.Update(defect, userFromDb, dryRun);
+                    DefectDAO defectDao = new DefectDAO();
+                    foreach (Defect defect in defects)
+                    {
+                        defectDao.Update(defect, userFromDb, dryRun);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.Message);
+                    result.errorMessage = "SPK-3";
                 }
             }
-            return Ok();
+            else
+            {
+                result.errorMessage = "SPK-4";
+            }
+            return Ok(result);
         }
 
 

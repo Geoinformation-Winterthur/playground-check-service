@@ -34,19 +34,22 @@ namespace playground_check_service.Controllers
         // POST inspection/
         [HttpPost]
         [Authorize]
-        public IActionResult Post([FromBody] InspectionReport[] inspectionReports, bool dryRun = false)
+        public ActionResult<ErrorMessage> Post([FromBody] InspectionReport[] inspectionReports, bool dryRun = false)
         {
+            ErrorMessage result = new ErrorMessage();
             User userFromDb = LoginController.getAuthorizedUser(this.User);
             if (userFromDb == null)
             {
-                return Unauthorized();
+                result.errorMessage = "Unauthorized";
+                return Unauthorized(result.errorMessage);
                 // Sie sind entweder nicht als Kontrolleur in der
                 // Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung.
             }
 
             if (inspectionReports == null || inspectionReports.Length == 0)
             {
-                return BadRequest();  // Es wurden keine Kontrollberichte empfangen.
+                result.errorMessage = "SPK-0";
+                return Ok(result);  // Es wurden keine Kontrollberichte empfangen.
             }
 
             Dictionary<int, DateTime> playdeviceDates = new Dictionary<int, DateTime>();
@@ -55,7 +58,8 @@ namespace playground_check_service.Controllers
             {
                 if (inspectionReport.playdeviceDateOfService == null)
                 {
-                    return StatusCode(900);
+                    result.errorMessage = "SPK-1";
+                    return Ok(result);
                     // Es wurden Kontrollberichte ohne Inspektionsdatum geliefert.
                 }
                 if (inspectionReport.playdeviceFid > 0 && !playdeviceDates.ContainsKey(inspectionReport.playdeviceFid))
@@ -126,7 +130,8 @@ namespace playground_check_service.Controllers
 
                     if (hasExistingInspections)
                     {
-                        return Conflict();
+                        result.errorMessage = "SPK-2";
+                        return Ok(result);
                     }
 
                     int inspectionTid = -1;
@@ -146,7 +151,7 @@ namespace playground_check_service.Controllers
                     commitTrans.CommandText = "COMMIT TRANSACTION";
                     commitTrans.ExecuteNonQuery();
 
-                    return Ok();
+                    return Ok(result);
                 }
                 catch(Exception ex)
                 {                    
@@ -156,7 +161,8 @@ namespace playground_check_service.Controllers
 
                     _logger.LogError(ex.Message);
 
-                    return StatusCode(500, "Internal server error");
+                    result.errorMessage = "SPK-3";
+                    return Ok(result);  // Internal server error
                 }
 
             }

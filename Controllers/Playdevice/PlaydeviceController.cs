@@ -19,11 +19,19 @@ namespace playground_check_service.Controllers
     [Route("Playdevice/")]
     public class PlaydeviceController : ControllerBase
     {
+        private readonly ILogger<PlaydeviceController> _logger;
+
+        public PlaydeviceController(ILogger<PlaydeviceController> logger)
+        {
+            _logger = logger;
+        }
+
         // POST playdevice/
         [HttpPost]
         [Authorize]
-        public IActionResult Post([FromBody] PlaydeviceFeature[] playdevices, bool dryRun = false)
+        public ActionResult<ErrorMessage> Post([FromBody] PlaydeviceFeature[] playdevices, bool dryRun = false)
         {
+            ErrorMessage result = new ErrorMessage();
             User userFromDb = LoginController.getAuthorizedUser(this.User);
             if (userFromDb == null || userFromDb.fid == 0)
             {
@@ -33,13 +41,23 @@ namespace playground_check_service.Controllers
 
             if (playdevices != null)
             {
-                PlaydeviceFeatureDAO playdeviceDao = new PlaydeviceFeatureDAO();
-                foreach (PlaydeviceFeature playdevice in playdevices)
+                try
                 {
-                    playdeviceDao.Update(playdevice, userFromDb, dryRun);
+                    PlaydeviceFeatureDAO playdeviceDao = new PlaydeviceFeatureDAO();
+                    foreach (PlaydeviceFeature playdevice in playdevices)
+                    {
+                        playdeviceDao.Update(playdevice, userFromDb, dryRun);
+                    }
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.Message);
+                    result.errorMessage = "SPK-3";
+                }
+            } else {
+                result.errorMessage = "SPK-5";
             }
-            return Ok();
+            return Ok(result);
         }
 
     }
