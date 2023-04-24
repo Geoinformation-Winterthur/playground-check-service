@@ -52,10 +52,19 @@ namespace playground_check_service.Controllers
                 return Ok(result);  // Es wurden keine Kontrollberichte empfangen.
             }
 
+            string inspectionType = inspectionReports[0].inspectionType;
+
             Dictionary<int, DateTime> playdeviceDates = new Dictionary<int, DateTime>();
             Dictionary<int, DateTime> playdeviceDetailDates = new Dictionary<int, DateTime>();
             foreach (InspectionReport inspectionReport in inspectionReports)
             {
+                if (inspectionReport.inspectionType != inspectionType)
+                {
+                    result.errorMessage = "SPK-6";
+                    return Ok(result);
+                    // Die gesendeten Berichte haben variierende Inspektionsarten.
+                }
+
                 if (inspectionReport.playdeviceDateOfService == null)
                 {
                     result.errorMessage = "SPK-1";
@@ -132,6 +141,7 @@ namespace playground_check_service.Controllers
                     {
                         result.errorMessage = "SPK-2";
                         return Ok(result);
+                        // Für diesen Spielplatz ist am selben Tag bereits ein Bericht eingereicht worden.
                     }
 
                     int inspectionTid = -1;
