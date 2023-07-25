@@ -18,7 +18,11 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
   </ItemGroup>
 
-    <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>portable</DebugType>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
@@ -31,10 +35,10 @@
     <EnvironmentName>Production</EnvironmentName>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Test|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Staging|AnyCPU'">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <EnvironmentName>Test</EnvironmentName>
+    <EnvironmentName>Staging</EnvironmentName>
   </PropertyGroup>
 
   <ItemGroup>

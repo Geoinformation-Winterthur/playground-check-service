@@ -103,11 +103,12 @@ public class LoginController : ControllerBase
                 userClaims.Add(new Claim(ClaimTypes.GivenName, userFromDb.firstName));
                 userClaims.Add(new Claim(ClaimTypes.Name, userFromDb.lastName));
 
-                string serviceUrl = AppConfig.Configuration.GetValue<string>("URL:ServiceUrl");
+                string serviceDomain = AppConfig.Configuration.GetValue<string>("URL:ServiceDomain");
+                string serviceBasePath = AppConfig.Configuration.GetValue<string>("URL:ServiceBasePath");
 
                 JwtSecurityToken securityToken = new JwtSecurityToken(
-                    issuer: serviceUrl,
-                    audience: serviceUrl,
+                    issuer: serviceDomain + serviceBasePath,
+                    audience: serviceDomain + serviceBasePath,
                     claims: userClaims,
                     signingCredentials: signingCredentials,
                     expires: DateTime.UtcNow.AddDays(2)

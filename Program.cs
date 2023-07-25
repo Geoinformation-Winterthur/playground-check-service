@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Prometheus;
+using Npgsql;
+using Microsoft.OpenApi.Models;
 
 Log.Logger = new LoggerConfiguration()
             .ReadFrom.Configuration(AppConfig.Configuration)
@@ -18,15 +20,17 @@ try
 
     Log.Information("Starting playground service.");
 
+    NpgsqlConnection.GlobalTypeMapper.UseNetTopologySuite();
+
     WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
     builder.Host.UseSerilog();
 
     // Add services to the container.
 
-    string serviceUrl = AppConfig.Configuration.GetValue<string>("URL:ServiceUrl");
+    string serviceDomain = AppConfig.Configuration.GetValue<string>("URL:ServiceDomain");
+    string serviceBasePath = AppConfig.Configuration.GetValue<string>("URL:ServiceBasePath");
     string securityKey = AppConfig.Configuration.GetValue<string>("SecurityKey");
-
 
     builder.Services.AddAuthentication(options =>
     {
@@ -42,16 +46,26 @@ try
                 ValidateLifetime = true,
                 RequireExpirationTime = true,
                 ValidateIssuerSigningKey = true,
-                ValidIssuer = serviceUrl,
-                ValidAudience = serviceUrl,
+                ValidIssuer = serviceDomain + serviceBasePath,
+                ValidAudience = serviceDomain + serviceBasePath,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(securityKey))
             };
         });
 
     builder.Services.AddControllers();
-    // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
     builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen();
+    builder.Services.AddSwaggerGen(options => {
+        string serviceDescription = AppConfig.Configuration.GetValue<string>("ServiceDescription");
+        options.SwaggerDoc("v1", new OpenApiInfo
+        {
+            Title = "Winterthur Playground Regular Inspection API - V1",
+            Version = "v1",
+            Description = serviceDescription
+        });
+        var commentsXmlFile = Path.Combine(System.AppContext.BaseDirectory,
+                        "playground-check-service.xml");
+        options.IncludeXmlComments(commentsXmlFile);
+    });
 
     string clientUrl = AppConfig.Configuration.GetValue<string>("URL:ClientUrl");
     string policyName = "AllowCorsOrigins";
@@ -78,7 +92,7 @@ try
     });
     */
 
-    var app = builder.Build();
+    WebApplication app = builder.Build();
 
     app.UseSerilogRequestLogging();
 
@@ -87,8 +101,26 @@ try
     {
         app.UseDeveloperExceptionPage();
     }
+    else
+    {
+        app.UsePathBase(serviceBasePath);
+    }
 
-    app.UseSwagger();
+    app.UseSwagger(options =>
+    {
+        if (!app.Environment.IsDevelopment())
+        {
+            options.PreSerializeFilters.Add((doc, httpRequest) =>
+            {
+                doc.Servers = new List<OpenApiServer> {
+                    new OpenApiServer {
+                        Url = serviceDomain + serviceBasePath
+                        }
+                        };
+
+            });
+        }
+    });
     app.UseSwaggerUI();
 
     // app.UseHttpsRedirection();

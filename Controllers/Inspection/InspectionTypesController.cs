@@ -19,7 +19,7 @@ namespace playground_check_service.Controllers
     /// provides read access, no write access.
     /// </remarks>
     [ApiController]
-    [Route("Inspection/Types")]
+    [Route("/Inspection/types")]
     public class InspectionTypesController : ControllerBase
     {
         private readonly ILogger<InspectionTypesController> _logger;

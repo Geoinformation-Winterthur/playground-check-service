@@ -11,6 +11,7 @@ using NpgsqlTypes;
 using playground_check_service.Model;
 using System.Text;
 using playground_check_service.Configuration;
+using NetTopologySuite.Geometries;
 
 namespace playground_check_service.Controllers
 {
@@ -33,6 +34,115 @@ namespace playground_check_service.Controllers
         public PlaygroundController(ILogger<PlaygroundController> logger)
         {
             _logger = logger;
+        }
+
+        // GET /collections/playgrounds/items/
+        /// <summary>
+        /// Retrieves a collection of all public playgrounds of the City
+        /// of Winterthur that are operated by the Municipal Green Office.
+        /// </summary>
+        /// <response code="200">
+        /// The data is returned in an array of feature objects.
+        /// </response>
+        [Route("/Collections/Playgrounds/Items/")]
+        [HttpGet]
+        [ProducesResponseType(typeof(PlaygroundFeature[]), 200)]
+        public async Task<PlaygroundFeature[]> GetFeaturesInCollection()
+        {
+            List<PlaygroundFeature> result = new List<PlaygroundFeature>();
+
+            try
+            {
+                using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+                {
+                    await pgConn.OpenAsync();
+                    NpgsqlCommand selectComm = pgConn.CreateCommand();
+                    selectComm.CommandText = "SELECT fid, nummer, name, geom FROM \"wgr_sp_spielplatz\"";
+
+                    using (NpgsqlDataReader reader = await selectComm.ExecuteReaderAsync())
+                    {
+                        PlaygroundFeature currentPlayground;
+                        while (await reader.ReadAsync())
+                        {
+                            currentPlayground = new PlaygroundFeature();
+                            currentPlayground.properties.fid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0);
+                            currentPlayground.properties.nummer = reader.IsDBNull(1) ? -1 : reader.GetInt32(1);
+                            currentPlayground.properties.name = reader.IsDBNull(2) ? "" : reader.GetString(2);
+
+                            Point ntsPoint = reader.IsDBNull(3) ? Point.Empty : reader.GetValue(3) as Point;
+                            currentPlayground.geometry = new PlaygroundFeaturePoint(ntsPoint);
+                            result.Add(currentPlayground);
+                        }
+                        return result.ToArray();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex.Message);
+                PlaygroundFeature errObj = new PlaygroundFeature();
+                errObj.errorMessage = "Unknown critical error.";
+                return new PlaygroundFeature[] {errObj};
+            }
+        }
+
+        // GET /collections/playgrounds/items/638364
+        /// <summary>
+        /// Retrieves the public playground of the City of Winterthur
+        /// that is operated by the Municipal Green Office for the
+        /// given FID.
+        /// </summary>
+        /// <response code="200">
+        /// The data is returned as a feature objects.
+        /// </response>
+        [Route("/Collections/Playgrounds/Items/{fid}")]
+        [HttpGet]
+        [ProducesResponseType(typeof(PlaygroundFeature), 200)]
+        public async Task<PlaygroundFeature> GetPlaygroundAsFeature(int fid)
+        {
+            PlaygroundFeature result = new PlaygroundFeature();
+            result.properties.fid = fid;
+
+            if (fid < 0)
+            {
+                result.errorMessage = "Playground with negative fid requested. This is not possible.";
+                return result;
+            }
+
+            try
+            {
+                using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+                {
+                    await pgConn.OpenAsync();
+                    NpgsqlCommand selectComm = pgConn.CreateCommand();
+                    selectComm.CommandText = "SELECT nummer, name, geom FROM \"wgr_sp_spielplatz\" WHERE fid=@fid";
+                    selectComm.Parameters.AddWithValue("fid", fid);
+
+                    using (NpgsqlDataReader reader = await selectComm.ExecuteReaderAsync())
+                    {
+                        if (await reader.ReadAsync())
+                        {
+                            result.properties.nummer = reader.IsDBNull(0) ? -1 : reader.GetInt32(0);
+                            result.properties.name = reader.IsDBNull(1) ? "" : reader.GetString(1);
+
+                            Point ntsPoint = reader.IsDBNull(2) ? Point.Empty : reader.GetValue(2) as Point;
+                            result.geometry = new PlaygroundFeaturePoint(ntsPoint);
+                            return result;
+                        }
+                        else
+                        {
+                            result.errorMessage = "No playground found for given fid.";
+                            return result;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex.Message);
+                result.errorMessage = "Unknown critical error.";
+                return result;
+            }
         }
 
         // GET Playground/8262517&inspectiontype=...
@@ -81,13 +191,13 @@ namespace playground_check_service.Controllers
                         "JOIN \"wgr_sp_insp_bericht\" bericht ON mangel.tid_insp_bericht = bericht.tid " +
                         "JOIN \"gr_v_spielgeraete\" geraete ON bericht.fid_spielgeraet = geraete.fid " +
                         "WHERE geraete.fid_spielplatz = sp.fid " +
-                        "AND mangel.fid_erledigung IS NULL) AS geraet_hat_mangel, "+
+                        "AND mangel.fid_erledigung IS NULL) AS geraet_hat_mangel, " +
                         "(SELECT count(*) > 0 " +
                         "FROM \"wgr_sp_insp_mangel\" mangel " +
                         "JOIN \"wgr_sp_insp_bericht\" bericht ON mangel.tid_insp_bericht = bericht.tid " +
                         "JOIN \"wgr_sp_geraetedetail\" detail ON bericht.fid_geraet_detail = detail.fid " +
                         "JOIN \"gr_v_spielgeraete\" geraete ON detail.fid_spielgeraet = geraete.fid " +
-                        "WHERE geraete.fid_spielplatz = sp.fid "+
+                        "WHERE geraete.fid_spielplatz = sp.fid " +
                         "AND mangel.fid_erledigung IS NULL) AS detail_hat_mangel " +
                         "FROM \"wgr_sp_spielplatz\" sp " +
                         "LEFT JOIN \"wgr_sp_inspektion\" insp " +
@@ -283,11 +393,10 @@ namespace playground_check_service.Controllers
                         currentPlaydevice.properties.fid = reader.GetInt32(0);
                         currentPlaydevice.properties.comment = reader.IsDBNull(1) ? "" : reader.GetString(1);
 
-                        NetTopologySuite.Geometries.Point pointFromDb = reader[2]
-                                    as NetTopologySuite.Geometries.Point;
-                        Geometry geometry
-                                    = new Geometry(
-                                        Geometry.Type.Point,
+                        Point pointFromDb = reader[2] as Point;
+                        Model.Geometry geometry
+                                    = new Model.Geometry(
+                                        Model.Geometry.Type.Point,
                                         new double[] { pointFromDb.Coordinate.X, pointFromDb.Coordinate.Y });
                         currentPlaydevice.geometry = geometry;
 
@@ -299,9 +408,9 @@ namespace playground_check_service.Controllers
                         if (!reader.IsDBNull(7)) currentPlaydevice.properties.costEstimation = reader.GetFloat(7);
                         if (!reader.IsDBNull(8)) currentPlaydevice.properties.recommendedYearOfRenovation = reader.GetInt32(8);
                         currentPlaydevice.properties.commentRecommendedYearOfRenovation = reader.IsDBNull(9) ? "" : reader.GetString(9);
-                        
+
                         byte[] pictureBase64Bytes = reader.IsDBNull(10) ? new byte[0] : (byte[])reader[10];
-                        if(pictureBase64Bytes.Length != 0)
+                        if (pictureBase64Bytes.Length != 0)
                         {
                             currentPlaydevice.properties.pictureBase64String = Encoding.UTF8
                                                 .GetString(pictureBase64Bytes, 0, pictureBase64Bytes.Length);
