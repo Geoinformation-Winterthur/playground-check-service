@@ -11,13 +11,10 @@ namespace playground_check_service.Controllers;
 [Route("/")]
 public class HomeController : ControllerBase
 {
-    private readonly ILogger<HomeController> _logger;
-    private readonly Microsoft.AspNetCore.Hosting.IWebHostEnvironment _env;
+    private readonly IWebHostEnvironment _env;
 
-    public HomeController(ILogger<HomeController> logger,
-        Microsoft.AspNetCore.Hosting.IWebHostEnvironment env)
+    public HomeController(IWebHostEnvironment env)
     {
-        _logger = logger;
         _env = env;
     }
 

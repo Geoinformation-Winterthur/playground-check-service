@@ -57,7 +57,7 @@ namespace playground_check_service.Controllers
                 {
                     await pgConn.OpenAsync();
                     NpgsqlCommand selectComm = pgConn.CreateCommand();
-                    selectComm.CommandText = "SELECT fid, nummer, name, geom FROM \"wgr_sp_spielplatz\"";
+                    selectComm.CommandText = "SELECT uuid, nummer, name, strassenname, hausnummer, geom FROM \"wgr_sp_spielplatz\"";
 
                     using (NpgsqlDataReader reader = await selectComm.ExecuteReaderAsync())
                     {
@@ -65,11 +65,13 @@ namespace playground_check_service.Controllers
                         while (await reader.ReadAsync())
                         {
                             currentPlayground = new PlaygroundFeature();
-                            currentPlayground.properties.fid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0);
+                            currentPlayground.properties.uuid = reader.IsDBNull(0) ? "" : reader.GetString(0);
                             currentPlayground.properties.nummer = reader.IsDBNull(1) ? -1 : reader.GetInt32(1);
                             currentPlayground.properties.name = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                            currentPlayground.properties.streetName = reader.IsDBNull(3) ? "" : reader.GetString(3);
+                            currentPlayground.properties.houseNo = reader.IsDBNull(4) ? "" : reader.GetString(4);
 
-                            Point ntsPoint = reader.IsDBNull(3) ? Point.Empty : reader.GetValue(3) as Point;
+                            Point ntsPoint = reader.IsDBNull(5) ? Point.Empty : reader.GetValue(5) as Point;
                             currentPlayground.geometry = new PlaygroundFeaturePoint(ntsPoint);
                             result.Add(currentPlayground);
                         }
@@ -90,24 +92,30 @@ namespace playground_check_service.Controllers
         /// <summary>
         /// Retrieves the public playground of the City of Winterthur
         /// that is operated by the Municipal Green Office for the
-        /// given FID.
+        /// given UUID.
         /// </summary>
         /// <response code="200">
         /// The data is returned as a feature objects.
         /// </response>
-        [Route("/Collections/Playgrounds/Items/{fid}")]
+        [Route("/Collections/Playgrounds/Items/{uuid}")]
         [HttpGet]
         [ProducesResponseType(typeof(PlaygroundFeature), 200)]
-        public async Task<PlaygroundFeature> GetPlaygroundAsFeature(int fid)
+        public async Task<PlaygroundFeature> GetPlaygroundAsFeature(string uuid)
         {
-            PlaygroundFeature result = new PlaygroundFeature();
-            result.properties.fid = fid;
-
-            if (fid < 0)
+            if(uuid == null)
             {
-                result.errorMessage = "Playground with negative fid requested. This is not possible.";
+                uuid = "";
+            } else {
+                uuid = uuid.Trim().ToLower();
+            }
+
+            PlaygroundFeature result = new PlaygroundFeature();
+            if(uuid == ""){
+                _logger.LogInformation("No valid UUID provided by the user in public GET playground as feature operation");
+                result.errorMessage = "No valid UUID provided.";
                 return result;
             }
+            result.properties.uuid = uuid;
 
             try
             {
@@ -115,8 +123,8 @@ namespace playground_check_service.Controllers
                 {
                     await pgConn.OpenAsync();
                     NpgsqlCommand selectComm = pgConn.CreateCommand();
-                    selectComm.CommandText = "SELECT nummer, name, geom FROM \"wgr_sp_spielplatz\" WHERE fid=@fid";
-                    selectComm.Parameters.AddWithValue("fid", fid);
+                    selectComm.CommandText = "SELECT nummer, name, strassenname, hausnummer, geom FROM \"wgr_sp_spielplatz\" WHERE uuid=@uuid";
+                    selectComm.Parameters.AddWithValue("uuid", uuid);
 
                     using (NpgsqlDataReader reader = await selectComm.ExecuteReaderAsync())
                     {
@@ -124,14 +132,16 @@ namespace playground_check_service.Controllers
                         {
                             result.properties.nummer = reader.IsDBNull(0) ? -1 : reader.GetInt32(0);
                             result.properties.name = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                            result.properties.streetName = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                            result.properties.houseNo = reader.IsDBNull(3) ? "" : reader.GetString(3);
 
-                            Point ntsPoint = reader.IsDBNull(2) ? Point.Empty : reader.GetValue(2) as Point;
+                            Point ntsPoint = reader.IsDBNull(4) ? Point.Empty : reader.GetValue(4) as Point;
                             result.geometry = new PlaygroundFeaturePoint(ntsPoint);
                             return result;
                         }
                         else
                         {
-                            result.errorMessage = "No playground found for given fid.";
+                            result.errorMessage = "No playground found for given UUID.";
                             return result;
                         }
                     }
