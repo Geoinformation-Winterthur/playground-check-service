@@ -69,7 +69,7 @@ public class LoginController : ControllerBase
         _logger.LogInformation("User " + receivedUser.mailAddress + " provided a non-empty password. Now trying to authenticate...");
 
         // get corresponding user from database:
-        User userFromDb = LoginController._getUserFromDatabase(receivedUser.mailAddress);
+        User userFromDb = LoginController._getUserFromDatabase(receivedUser.mailAddress, dryRun);
 
         LoginController._updateLoginTimestamp(receivedUser.mailAddress, dryRun);
 
@@ -98,20 +98,22 @@ public class LoginController : ControllerBase
                 SymmetricSecurityKey key = new SymmetricSecurityKey(securityKeyByteArray);
                 SigningCredentials signingCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-                List<Claim> userClaims = new List<Claim>();
-                userClaims.Add(new Claim(ClaimTypes.Email, userFromDb.mailAddress));
-                userClaims.Add(new Claim(ClaimTypes.GivenName, userFromDb.firstName));
-                userClaims.Add(new Claim(ClaimTypes.Name, userFromDb.lastName));
+                List<Claim> userClaims = new()
+                {
+                    new Claim(ClaimTypes.Email, userFromDb.mailAddress),
+                    new Claim(ClaimTypes.GivenName, userFromDb.firstName),
+                    new Claim(ClaimTypes.Name, userFromDb.lastName)
+                };
 
                 string serviceDomain = AppConfig.Configuration.GetValue<string>("URL:ServiceDomain");
                 string serviceBasePath = AppConfig.Configuration.GetValue<string>("URL:ServiceBasePath");
 
-                JwtSecurityToken securityToken = new JwtSecurityToken(
+                JwtSecurityToken securityToken = new(
                     issuer: serviceDomain + serviceBasePath,
                     audience: serviceDomain + serviceBasePath,
                     claims: userClaims,
                     signingCredentials: signingCredentials,
-                    expires: DateTime.UtcNow.AddDays(2)
+                    expires: DateTime.UtcNow.AddDays(2)  // the login expires after 2 days
                 );
 
                 string securityTokenString = new JwtSecurityTokenHandler().WriteToken(securityToken);
@@ -135,8 +137,10 @@ public class LoginController : ControllerBase
     }
 
 
-    public static User getAuthorizedUser(ClaimsPrincipal userFromService)
+    public static User getAuthorizedUser(ClaimsPrincipal userFromService, bool dryRun)
     {
+        if(dryRun) return null;
+        
         Claim userMailAddressClaim = null;
         foreach (Claim userClaim in userFromService.Claims)
         {
@@ -154,12 +158,14 @@ public class LoginController : ControllerBase
         {
             return null;
         }
-        User userFromDb = LoginController._getUserFromDatabase(userMailAddress);
+        User userFromDb = LoginController._getUserFromDatabase(userMailAddress, dryRun);
         return userFromDb;
     }
 
-    private static User _getUserFromDatabase(string eMailAddress)
+    private static User _getUserFromDatabase(string eMailAddress, bool dryRun)
     {
+        if(dryRun) return null;
+
         User userFromDb = null;
         // get data of current user from database:
         using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))

@@ -32,7 +32,7 @@ namespace playground_check_service.Controllers
         public ActionResult<ErrorMessage> Post([FromBody] PlaydeviceFeature[] playdevices, bool dryRun = false)
         {
             ErrorMessage result = new ErrorMessage();
-            User userFromDb = LoginController.getAuthorizedUser(this.User);
+            User userFromDb = LoginController.getAuthorizedUser(this.User, dryRun);
             if (userFromDb == null || userFromDb.fid == 0)
             {
                 return Unauthorized("Sie sind entweder nicht als Kontrolleur in der " +
