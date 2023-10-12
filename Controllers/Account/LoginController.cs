@@ -152,9 +152,9 @@ public class LoginController : ControllerBase
         string userMailAddress = null;
         if (userMailAddressClaim != null)
         {
-            userMailAddress = userMailAddressClaim.Value;
+            userMailAddress = userMailAddressClaim.Value.Trim().ToLower();
         }
-        if (userMailAddress == null || userMailAddress.Trim().Equals(""))
+        if (userMailAddress == null || userMailAddress.Equals(""))
         {
             return null;
         }
