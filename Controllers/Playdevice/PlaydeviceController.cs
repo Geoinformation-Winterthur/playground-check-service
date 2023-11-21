@@ -54,9 +54,54 @@ namespace playground_check_service.Controllers
                     _logger.LogError(ex.Message);
                     result.errorMessage = "SPK-3";
                 }
-            } else {
+            }
+            else
+            {
                 result.errorMessage = "SPK-5";
             }
+            return Ok(result);
+        }
+
+        // PUT playdevice/?fid=...
+        [HttpPut]
+        [Authorize]
+        public ActionResult<ErrorMessage> ExchangeImage([FromBody] PictureString picture, int fid, bool dryRun = false)
+        {
+            ErrorMessage result = new ErrorMessage();
+
+            if (fid < 1)
+            {
+                _logger.LogWarning("No FID given in playdevice picture update process.");
+                result.errorMessage = "SPK-7";
+                return Ok(result);
+            }
+
+            string pictureData = "";
+
+            if(picture != null && picture.data != null){
+                pictureData = picture.data;                
+            }
+
+            pictureData = pictureData.Trim();
+
+            if (String.Empty == pictureData)
+            {
+                _logger.LogWarning("User tried to exchange playdevice picture with an empty picture.");
+                result.errorMessage = "SPK-6";
+                return Ok(result);
+            }
+
+            try
+            {
+                PlaydeviceFeatureDAO playdeviceDao = new PlaydeviceFeatureDAO();
+                playdeviceDao.UpdatePicture(fid, pictureData, dryRun);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                result.errorMessage = "SPK-3";
+            }
+
             return Ok(result);
         }
 

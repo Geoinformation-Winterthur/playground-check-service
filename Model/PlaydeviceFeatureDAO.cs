@@ -4,6 +4,7 @@
 // </copyright>
 
 using System.Data.Common;
+using System.Text;
 using Npgsql;
 using playground_check_service.Configuration;
 
@@ -21,7 +22,7 @@ namespace playground_check_service.Model
                     pgConn.Open();
                     DbCommand insertPlaydeviceCommand = this.CreateCommandForUpdate(playdevice, pgConn,
                             userFromDb, dryRun);
-                    if(insertPlaydeviceCommand != null)
+                    if (insertPlaydeviceCommand != null)
                     {
                         insertPlaydeviceCommand.ExecuteNonQuery();
                     }
@@ -29,10 +30,25 @@ namespace playground_check_service.Model
             }
         }
 
+        internal void UpdatePicture(int playdeviceFid, string picture, bool dryRun)
+        {
+            byte[] pictureBytes = Encoding.ASCII.GetBytes(picture);
+            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+            {
+                pgConn.Open();
+                DbCommand insertPlaydeviceCommand = this.CreateCommandForPictureUpdate(playdeviceFid, pictureBytes,
+                        pgConn, dryRun);
+                if (insertPlaydeviceCommand != null)
+                {
+                    insertPlaydeviceCommand.ExecuteNonQuery();
+                }
+            }
+        }
+
         private DbCommand CreateCommandForUpdate(PlaydeviceFeature playdevice, NpgsqlConnection pgConn,
                 User userFromDb, bool dryRun)
         {
-            if(dryRun) return null;
+            if (dryRun) return null;
 
             NpgsqlCommand updatePlaydeviceCommand = pgConn.CreateCommand();
             updatePlaydeviceCommand.CommandText = "UPDATE \"gr_v_spielgeraete\" SET " +
@@ -57,6 +73,19 @@ namespace playground_check_service.Model
                 updatePlaydeviceCommand.Parameters.AddWithValue("bemerkung_empf_sanierung",
                         DBNull.Value);
             }
+            return updatePlaydeviceCommand;
+        }
+
+        private DbCommand CreateCommandForPictureUpdate(int playdeviceFid, byte[] pictureBytes,
+                NpgsqlConnection pgConn, bool dryRun)
+        {
+            if (dryRun) return null;
+            NpgsqlCommand updatePlaydeviceCommand = pgConn.CreateCommand();
+            updatePlaydeviceCommand.CommandText = "UPDATE \"gr_v_spielgeraete\" SET " +
+                    "picture_base64=@picture " +
+                    "WHERE fid=@fid";
+            updatePlaydeviceCommand.Parameters.AddWithValue("picture", pictureBytes);
+            updatePlaydeviceCommand.Parameters.AddWithValue("fid", playdeviceFid);
             return updatePlaydeviceCommand;
         }
 
