@@ -385,7 +385,7 @@ namespace playground_check_service.Controllers
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
                 selectComm.CommandText = "SELECT spg.fid, spg.bemerkungen, spg.geom, " +
                         "gart.short_value, gart.value, spg.norm, lief.name, " +
-                        "spg.kostenschaetzung, spg.empfohlenes_sanierungsjahr, spg.bemerkung_empf_sanierung, " +
+                        "spg.empfohlenes_sanierungsjahr, spg.bemerkung_empf_sanierung, " +
                         "spg.picture_base64 " +
                         "FROM \"gr_v_spielgeraete\" spg " +
                         "LEFT JOIN \"wgr_sp_spielgeraeteart_tbd\" gart ON spg.id_geraeteart = gart.id " +
@@ -415,11 +415,10 @@ namespace playground_check_service.Controllers
                         currPlaydeviceType.description = reader.IsDBNull(4) ? "" : reader.GetString(4);
                         currPlaydeviceType.standard = reader.IsDBNull(5) ? "" : reader.GetString(5);
                         currentPlaydevice.properties.supplier = reader.IsDBNull(6) ? "" : reader.GetString(6);
-                        if (!reader.IsDBNull(7)) currentPlaydevice.properties.costEstimation = reader.GetFloat(7);
-                        if (!reader.IsDBNull(8)) currentPlaydevice.properties.recommendedYearOfRenovation = reader.GetInt32(8);
-                        currentPlaydevice.properties.commentRecommendedYearOfRenovation = reader.IsDBNull(9) ? "" : reader.GetString(9);
+                        if (!reader.IsDBNull(7)) currentPlaydevice.properties.recommendedYearOfRenovation = reader.GetInt32(7);
+                        currentPlaydevice.properties.commentRecommendedYearOfRenovation = reader.IsDBNull(8) ? "" : reader.GetString(8);
 
-                        byte[] pictureBase64Bytes = reader.IsDBNull(10) ? new byte[0] : (byte[])reader[10];
+                        byte[] pictureBase64Bytes = reader.IsDBNull(9) ? new byte[0] : (byte[])reader[9];
                         if (pictureBase64Bytes.Length != 0)
                         {
                             currentPlaydevice.properties.pictureBase64String = Encoding.UTF8

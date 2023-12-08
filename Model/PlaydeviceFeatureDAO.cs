@@ -52,13 +52,10 @@ namespace playground_check_service.Model
 
             NpgsqlCommand updatePlaydeviceCommand = pgConn.CreateCommand();
             updatePlaydeviceCommand.CommandText = "UPDATE \"gr_v_spielgeraete\" SET " +
-                    "kostenschaetzung=@kostenschaetzung, " +
                     "empfohlenes_sanierungsjahr=@empfohlenes_sanierungsjahr, " +
                     "bemerkung_empf_sanierung=@bemerkung_empf_sanierung " +
                     "WHERE fid=@fid";
             updatePlaydeviceCommand.Parameters.AddWithValue("fid", playdevice.properties.fid);
-            updatePlaydeviceCommand.Parameters.AddWithValue("kostenschaetzung",
-                    playdevice.properties.costEstimation > 0 ? playdevice.properties.costEstimation : DBNull.Value);
             updatePlaydeviceCommand.Parameters.AddWithValue("empfohlenes_sanierungsjahr",
                     playdevice.properties.recommendedYearOfRenovation > 0 ?
                                 playdevice.properties.recommendedYearOfRenovation : DBNull.Value);

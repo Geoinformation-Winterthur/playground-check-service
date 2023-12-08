@@ -21,7 +21,6 @@ namespace playground_check_service.Model
                     = new InspectionCriterion[0];
         public InspectionCriterion[] secondaryFallProtectionInspectionCriteria { get; set; }
                     = new InspectionCriterion[0];
-        public float costEstimation { get; set; } = 0f;
         public int recommendedYearOfRenovation { get; set; } = 0;
         public string commentRecommendedYearOfRenovation { get; set; } = "";
         public Defect[] defects { get; set; }
