@@ -102,11 +102,13 @@ namespace playground_check_service.Controllers
                     foreach (KeyValuePair<int, DateTime> playdeviceDate in playdeviceDates)
                     {
                         selectIfExisting = pgConn.CreateCommand();
-                        selectIfExisting.CommandText = "SELECT count(*) FROM \"wgr_sp_insp_bericht\" " +
-                                    "WHERE fid_spielgeraet=@fid_spielgeraet " +
-                                    "AND datum_inspektion=@datum_inspektion";
+                        selectIfExisting.CommandText = @"SELECT count(*) FROM ""wgr_sp_insp_bericht"" 
+                                    WHERE fid_spielgeraet=@fid_spielgeraet 
+                                    AND inspektionsart = @inspektionsart 
+                                    AND datum_inspektion = @datum_inspektion";
                         selectIfExisting.Parameters.AddWithValue("fid_spielgeraet", playdeviceDate.Key);
                         NpgsqlDate dateOfService = (NpgsqlDate)playdeviceDate.Value;
+                        selectIfExisting.Parameters.AddWithValue("inspektionsart", inspectionType);
                         selectIfExisting.Parameters.AddWithValue("datum_inspektion", dateOfService);
 
                         using (NpgsqlDataReader reader = selectIfExisting.ExecuteReader())
@@ -121,11 +123,13 @@ namespace playground_check_service.Controllers
                         foreach (KeyValuePair<int, DateTime> playdeviceDetailDate in playdeviceDetailDates)
                         {
                             selectIfExisting = pgConn.CreateCommand();
-                            selectIfExisting.CommandText = "SELECT count(*) FROM \"wgr_sp_insp_bericht\" " +
-                                        "WHERE fid_geraet_detail=@fid_geraet_detail " +
-                                        "AND datum_inspektion=@datum_inspektion";
+                            selectIfExisting.CommandText = @"SELECT count(*) FROM ""wgr_sp_insp_bericht"" 
+                                        WHERE fid_geraet_detail=@fid_geraet_detail 
+                                        AND inspektionsart = @inspektionsart 
+                                        AND datum_inspektion = @datum_inspektion";
                             selectIfExisting.Parameters.AddWithValue("fid_geraet_detail", playdeviceDetailDate.Key);
                             NpgsqlDate dateOfService = (NpgsqlDate)playdeviceDetailDate.Value;
+                            selectIfExisting.Parameters.AddWithValue("inspektionsart", inspectionType);
                             selectIfExisting.Parameters.AddWithValue("datum_inspektion", dateOfService);
 
                             using (NpgsqlDataReader reader = selectIfExisting.ExecuteReader())
@@ -141,7 +145,7 @@ namespace playground_check_service.Controllers
                     {
                         result.errorMessage = "SPK-2";
                         return Ok(result);
-                        // Für diesen Spielplatz ist am selben Tag bereits ein Bericht eingereicht worden.
+                        // Für diesen Spielplatz ist am selben Tag bereits ein Bericht mit derselben Inspektionsart eingereicht worden.
                     }
 
                     int inspectionTid = -1;
