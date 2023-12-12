@@ -15,6 +15,7 @@ namespace playground_check_service.Model
         public string comment { get; set; } = "";
         public Type type { get; set; } = new Type();
         public DateTime dateOfService { get; set; }
+        public DateTime constructionDate { get; set; }
         public InspectionCriterion[] generalInspectionCriteria { get; set; }
                     = new InspectionCriterion[0];
         public InspectionCriterion[] mainFallProtectionInspectionCriteria { get; set; }

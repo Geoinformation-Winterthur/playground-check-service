@@ -84,7 +84,7 @@ namespace playground_check_service.Controllers
                 _logger.LogWarning(ex.Message);
                 PlaygroundFeature errObj = new PlaygroundFeature();
                 errObj.errorMessage = "Unknown critical error.";
-                return new PlaygroundFeature[] {errObj};
+                return new PlaygroundFeature[] { errObj };
             }
         }
 
@@ -102,15 +102,18 @@ namespace playground_check_service.Controllers
         [ProducesResponseType(typeof(PlaygroundFeature), 200)]
         public async Task<PlaygroundFeature> GetPlaygroundAsFeature(string uuid)
         {
-            if(uuid == null)
+            if (uuid == null)
             {
                 uuid = "";
-            } else {
+            }
+            else
+            {
                 uuid = uuid.Trim().ToLower();
             }
 
             PlaygroundFeature result = new PlaygroundFeature();
-            if(uuid == ""){
+            if (uuid == "")
+            {
                 _logger.LogInformation("No valid UUID provided by the user in public GET playground as feature operation");
                 result.errorMessage = "No valid UUID provided.";
                 return result;
@@ -386,7 +389,7 @@ namespace playground_check_service.Controllers
                 selectComm.CommandText = "SELECT spg.fid, spg.bemerkungen, spg.geom, " +
                         "gart.short_value, gart.value, spg.norm, lief.name, " +
                         "spg.empfohlenes_sanierungsjahr, spg.bemerkung_empf_sanierung, " +
-                        "spg.picture_base64, spg.nicht_zu_pruefen " +
+                        "spg.picture_base64, spg.nicht_zu_pruefen, spg.bau_dat " +
                         "FROM \"gr_v_spielgeraete\" spg " +
                         "LEFT JOIN \"wgr_sp_spielgeraeteart_tbd\" gart ON spg.id_geraeteart = gart.id " +
                         "LEFT JOIN \"wgr_sp_lieferant\" lief ON spg.id_lieferant = lief.fid " +
@@ -433,6 +436,12 @@ namespace playground_check_service.Controllers
 
 
                         currentPlaydevice.properties.notToBeChecked = reader.IsDBNull(10) ? false : reader.GetBoolean(10);
+
+                        if (!reader.IsDBNull(11))
+                        {
+                            NpgsqlDate constructionDate = reader.GetDate(11);
+                            currentPlaydevice.properties.constructionDate = (DateTime)constructionDate;
+                        }
 
                         currentPlaydevices.Add(currentPlaydevice);
                     }
