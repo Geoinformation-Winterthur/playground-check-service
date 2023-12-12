@@ -44,9 +44,22 @@ namespace playground_check_service.Controllers
                 try
                 {
                     PlaydeviceFeatureDAO playdeviceDao = new PlaydeviceFeatureDAO();
+
                     foreach (PlaydeviceFeature playdevice in playdevices)
                     {
-                        playdeviceDao.Update(playdevice, userFromDb, dryRun);
+                        bool hasPlaydeviceToBeChecked = playdeviceDao.HasPlaydeviceToBeChecked(playdevice);
+                        if (!hasPlaydeviceToBeChecked)
+                        {
+                            _logger.LogError("Playdevice with FID " + playdevice.properties.fid + " must not be checked " +
+                                "but was sent to service.");
+                            result.errorMessage = "SPK-8";
+                            return result;
+                        }
+                    }
+
+                    foreach (PlaydeviceFeature playdevice in playdevices)
+                    {
+                        playdeviceDao.Update(playdevice, dryRun);
                     }
                 }
                 catch (Exception ex)
@@ -78,8 +91,9 @@ namespace playground_check_service.Controllers
 
             string pictureData = "";
 
-            if(picture != null && picture.data != null){
-                pictureData = picture.data;                
+            if (picture != null && picture.data != null)
+            {
+                pictureData = picture.data;
             }
 
             pictureData = pictureData.Trim();

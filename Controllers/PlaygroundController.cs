@@ -386,7 +386,7 @@ namespace playground_check_service.Controllers
                 selectComm.CommandText = "SELECT spg.fid, spg.bemerkungen, spg.geom, " +
                         "gart.short_value, gart.value, spg.norm, lief.name, " +
                         "spg.empfohlenes_sanierungsjahr, spg.bemerkung_empf_sanierung, " +
-                        "spg.picture_base64 " +
+                        "spg.picture_base64, spg.nicht_zu_pruefen " +
                         "FROM \"gr_v_spielgeraete\" spg " +
                         "LEFT JOIN \"wgr_sp_spielgeraeteart_tbd\" gart ON spg.id_geraeteart = gart.id " +
                         "LEFT JOIN \"wgr_sp_lieferant\" lief ON spg.id_lieferant = lief.fid " +
@@ -414,6 +414,8 @@ namespace playground_check_service.Controllers
                         currPlaydeviceType.name = reader.IsDBNull(3) ? "" : reader.GetString(3);
                         currPlaydeviceType.description = reader.IsDBNull(4) ? "" : reader.GetString(4);
                         currPlaydeviceType.standard = reader.IsDBNull(5) ? "" : reader.GetString(5);
+                        currentPlaydevice.properties.type = currPlaydeviceType;
+
                         currentPlaydevice.properties.supplier = reader.IsDBNull(6) ? "" : reader.GetString(6);
                         if (!reader.IsDBNull(7)) currentPlaydevice.properties.recommendedYearOfRenovation = reader.GetInt32(7);
                         currentPlaydevice.properties.commentRecommendedYearOfRenovation = reader.IsDBNull(8) ? "" : reader.GetString(8);
@@ -429,7 +431,8 @@ namespace playground_check_service.Controllers
                             currentPlaydevice.properties.pictureBase64String = "";
                         }
 
-                        currentPlaydevice.properties.type = currPlaydeviceType;
+
+                        currentPlaydevice.properties.notToBeChecked = reader.IsDBNull(10) ? false : reader.GetBoolean(10);
 
                         currentPlaydevices.Add(currentPlaydevice);
                     }

@@ -23,6 +23,10 @@ namespace playground_check_service.Model
                     = new InspectionCriterion[0];
         public int recommendedYearOfRenovation { get; set; } = 0;
         public string commentRecommendedYearOfRenovation { get; set; } = "";
+        public bool notToBeChecked { get; set; } = false;
+        public bool cannotBeChecked { get; set; } = false;
+        public string cannotBeCheckedReason { get; set; } = "";
+
         public Defect[] defects { get; set; }
         public InspectionReport[] lastInspectionReports { get; set; }
                     = new InspectionReport[0];

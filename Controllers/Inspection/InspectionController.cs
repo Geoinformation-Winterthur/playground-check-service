@@ -155,10 +155,30 @@ namespace playground_check_service.Controllers
                                         userFromDb, pgConn, dryRun);
                     }
 
+                    NpgsqlCommand selectIfCanBeChecked;
+                    bool canBeChecked;
                     foreach (InspectionReport inspectionReport in inspectionReports)
                     {
-                        InspectionController.writeInspectionReport(inspectionTid, inspectionReport,
+                        canBeChecked = false;
+                        selectIfCanBeChecked = pgConn.CreateCommand();
+                        selectIfCanBeChecked.CommandText = @"SELECT nicht_zu_pruefen, nicht_pruefbar
+                                        FROM ""gr_v_spielgeraete"" 
+                                        WHERE fid=@fid";
+                        selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceFid);
+
+                        using (NpgsqlDataReader reader = selectIfCanBeChecked.ExecuteReader())
+                        {
+                            reader.Read();
+                            canBeChecked = (reader.IsDBNull(0) || !reader.GetBoolean(0)) &&
+                                    (reader.IsDBNull(1) || !reader.GetBoolean(1));
+                        }
+
+                        if (canBeChecked)
+                        {
+                            InspectionController.writeInspectionReport(inspectionTid, inspectionReport,
                                     userFromDb, pgConn, dryRun);
+                        }
+
                     }
 
                     NpgsqlCommand commitTrans = pgConn.CreateCommand();
@@ -167,8 +187,8 @@ namespace playground_check_service.Controllers
 
                     return Ok(result);
                 }
-                catch(Exception ex)
-                {                    
+                catch (Exception ex)
+                {
                     NpgsqlCommand rollbackTrans = pgConn.CreateCommand();
                     rollbackTrans.CommandText = "ROLLBACK TRANSACTION";
                     rollbackTrans.ExecuteNonQuery();
@@ -260,14 +280,14 @@ namespace playground_check_service.Controllers
 
             playgroundFid = InspectionController._GetPlaygroundFid(exampleInspectionReport, pgConn);
 
-            if(dryRun) return -1;
+            if (dryRun) return -1;
 
             NpgsqlCommand insertInspectionCommand;
             insertInspectionCommand = pgConn.CreateCommand();
             insertInspectionCommand.CommandText = "INSERT INTO \"wgr_sp_inspektion\" " +
                     "(tid, id_inspektionsart, fid_spielplatz, datum_inspektion, fid_kontrolleur) " +
-                    "VALUES ("+
-                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_inspektion\"), "+
+                    "VALUES (" +
+                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_inspektion\"), " +
                     "@id_inspektionsart, @fid_spielplatz, @datum_inspektion, @fid_kontrolleur) RETURNING tid";
             insertInspectionCommand.Parameters.AddWithValue("id_inspektionsart",
                         inspectionTypeId != -1 ? inspectionTypeId : DBNull.Value);
@@ -285,8 +305,8 @@ namespace playground_check_service.Controllers
         private static void writeInspectionReport(int inspectionTid, InspectionReport inspectionReport,
                     User userFromDb, NpgsqlConnection pgConn, bool dryRun)
         {
-            if(dryRun) return;
-            
+            if (dryRun) return;
+
             NpgsqlCommand insertInspectionReportCommand;
             insertInspectionReportCommand = pgConn.CreateCommand();
             insertInspectionReportCommand.CommandText = "INSERT INTO \"wgr_sp_insp_bericht\" " +
@@ -294,7 +314,7 @@ namespace playground_check_service.Controllers
                     "pruefung_erledigt, pruefung_kommentar, wartung_text, wartung_erledigung, " +
                     "wartung_kommentar, fallschutz) " +
                     "VALUES (" +
-                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_bericht\"), "+
+                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_bericht\"), " +
                     "@tid_inspektion, @fid_spielgeraet, @fid_geraet_detail, @inspektionsart, @datum_inspektion, @kontrolleur, @pruefung_text, " +
                     "@pruefung_erledigt, @pruefung_kommentar, @wartung_text, @wartung_erledigung, " +
                     "@wartung_kommentar, @fallschutz) RETURNING tid";
