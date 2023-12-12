@@ -78,6 +78,7 @@ namespace playground_check_service.Model
             NpgsqlCommand updatePlaydeviceCommand = pgConn.CreateCommand();
             updatePlaydeviceCommand.CommandText = "UPDATE \"gr_v_spielgeraete\" SET " +
                     "empfohlenes_sanierungsjahr=@empfohlenes_sanierungsjahr, " +
+                    "id_sanierungsart=@id_sanierungsart, " +
                     "bemerkung_empf_sanierung=@bemerkung_empf_sanierung, " +
                     "nicht_pruefbar=@nicht_pruefbar, " +
                     "grund_nicht_pruefbar=@grund_nicht_pruefbar " +
@@ -86,6 +87,15 @@ namespace playground_check_service.Model
             updatePlaydeviceCommand.Parameters.AddWithValue("empfohlenes_sanierungsjahr",
                     playdevice.properties.recommendedYearOfRenovation > 0 ?
                                 playdevice.properties.recommendedYearOfRenovation : DBNull.Value);
+
+            if (playdevice.properties.renovationType == "Totalsanierung") {
+                updatePlaydeviceCommand.Parameters.AddWithValue("id_sanierungsart", 1);
+            } else if (playdevice.properties.renovationType == "Teilsanierung") {
+                updatePlaydeviceCommand.Parameters.AddWithValue("id_sanierungsart", 2);
+            } else {
+                updatePlaydeviceCommand.Parameters.AddWithValue("id_sanierungsart", DBNull.Value);
+            }
+
             if (playdevice.properties.commentRecommendedYearOfRenovation != null &&
                         playdevice.properties.commentRecommendedYearOfRenovation.Length != 0)
             {

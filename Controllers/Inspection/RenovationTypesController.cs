@@ -10,30 +10,30 @@ using playground_check_service.Configuration;
 namespace playground_check_service.Controllers
 {
     /// <summary>
-    /// This is the controller for inspection type data. Inspection type data
-    /// is available at the /inspection/types route.
+    /// This is the controller for renovation type data. Renovation type data
+    /// is available at the /inspection/renovationtypes route.
     /// </summary>
     /// <remarks>
-    /// This class provides a list of the available types of inspections.
+    /// This class provides a list of the available types of renovations.
     /// The route of this controller only provides read access, no write access.
     /// </remarks>
     [ApiController]
-    [Route("/Inspection/types")]
-    public class InspectionTypesController : ControllerBase
+    [Route("/Inspection/renovationtypes")]
+    public class RenovationTypesController : ControllerBase
     {
-        private readonly ILogger<InspectionTypesController> _logger;
+        private readonly ILogger<RenovationTypesController> _logger;
 
-        public InspectionTypesController(ILogger<InspectionTypesController> logger)
+        public RenovationTypesController(ILogger<RenovationTypesController> logger)
         {
             _logger = logger;
         }
 
-        // GET inspection/types
+        // GET inspection/renovationtypes
         [HttpGet]
         [Authorize]
         public string[] GetTypes()
         {
-            return InspectionTypesController._GetTypes();
+            return RenovationTypesController._GetTypes();
         }
 
         internal static string[] _GetTypes()
@@ -44,16 +44,15 @@ namespace playground_check_service.Controllers
             {
                 pgConn.Open();
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
-                selectComm.CommandText = "SELECT short_value, value " +
-                            "FROM \"wgr_sp_inspektionsart_tbd\"";
+                selectComm.CommandText = "SELECT value " +
+                            "FROM \"wgr_sp_sanierungsart_tbd\"";
 
                 using (NpgsqlDataReader reader = selectComm.ExecuteReader())
                 {
                     while (reader.Read())
                     {
-                        string shortDescription = reader.GetString(0);
-                        string fullDescription = reader.GetString(1);
-                        result.Add(fullDescription + " (" + shortDescription + ")");
+                        string fullDescription = reader.GetString(0);
+                        result.Add(fullDescription);
                     }
                 }
                 pgConn.Close();

@@ -12,6 +12,7 @@ using playground_check_service.Model;
 using System.Text;
 using playground_check_service.Configuration;
 using NetTopologySuite.Geometries;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
 
 namespace playground_check_service.Controllers
 {
@@ -389,7 +390,8 @@ namespace playground_check_service.Controllers
                 selectComm.CommandText = "SELECT spg.fid, spg.bemerkungen, spg.geom, " +
                         "gart.short_value, gart.value, spg.norm, lief.name, " +
                         "spg.empfohlenes_sanierungsjahr, spg.bemerkung_empf_sanierung, " +
-                        "spg.picture_base64, spg.nicht_zu_pruefen, spg.bau_dat " +
+                        "spg.picture_base64, spg.nicht_zu_pruefen, spg.bau_dat, " +
+                        "spg.id_sanierungsart " +
                         "FROM \"gr_v_spielgeraete\" spg " +
                         "LEFT JOIN \"wgr_sp_spielgeraeteart_tbd\" gart ON spg.id_geraeteart = gart.id " +
                         "LEFT JOIN \"wgr_sp_lieferant\" lief ON spg.id_lieferant = lief.fid " +
@@ -441,6 +443,15 @@ namespace playground_check_service.Controllers
                         {
                             NpgsqlDate constructionDate = reader.GetDate(11);
                             currentPlaydevice.properties.constructionDate = (DateTime)constructionDate;
+                        }
+
+                        if(!reader.IsDBNull(12))
+                        {
+                            int idRenovationType = reader.GetInt32(12);
+                            if(idRenovationType == 1)
+                                currentPlaydevice.properties.renovationType = "Totalsanierung";
+                            else if(idRenovationType == 2)
+                                currentPlaydevice.properties.renovationType = "Teilsanierung";
                         }
 
                         currentPlaydevices.Add(currentPlaydevice);

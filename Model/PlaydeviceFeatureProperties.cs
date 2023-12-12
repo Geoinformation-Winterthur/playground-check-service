@@ -23,6 +23,7 @@ namespace playground_check_service.Model
         public InspectionCriterion[] secondaryFallProtectionInspectionCriteria { get; set; }
                     = new InspectionCriterion[0];
         public int recommendedYearOfRenovation { get; set; } = 0;
+        public string renovationType { get; set; } = "";
         public string commentRecommendedYearOfRenovation { get; set; } = "";
         public bool notToBeChecked { get; set; } = false;
         public bool cannotBeChecked { get; set; } = false;
