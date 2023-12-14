@@ -202,17 +202,9 @@ namespace playground_check_service.Controllers
                         "sp.name, insp.datum_inspektion, " +
                         "(SELECT count(*) > 0 " +
                         "FROM \"wgr_sp_insp_mangel\" mangel " +
-                        "JOIN \"wgr_sp_insp_bericht\" bericht ON mangel.tid_insp_bericht = bericht.tid " +
-                        "JOIN \"gr_v_spielgeraete\" geraete ON bericht.fid_spielgeraet = geraete.fid " +
+                        "JOIN \"gr_v_spielgeraete\" geraete ON mangel.fid_spielgeraet = geraete.fid " +
                         "WHERE geraete.fid_spielplatz = sp.fid " +
-                        "AND mangel.fid_erledigung IS NULL) AS geraet_hat_mangel, " +
-                        "(SELECT count(*) > 0 " +
-                        "FROM \"wgr_sp_insp_mangel\" mangel " +
-                        "JOIN \"wgr_sp_insp_bericht\" bericht ON mangel.tid_insp_bericht = bericht.tid " +
-                        "JOIN \"wgr_sp_geraetedetail\" detail ON bericht.fid_geraet_detail = detail.fid " +
-                        "JOIN \"gr_v_spielgeraete\" geraete ON detail.fid_spielgeraet = geraete.fid " +
-                        "WHERE geraete.fid_spielplatz = sp.fid " +
-                        "AND mangel.fid_erledigung IS NULL) AS detail_hat_mangel " +
+                        "AND mangel.fid_erledigung IS NULL) AS geraet_hat_mangel " +
                         "FROM \"wgr_sp_spielplatz\" sp " +
                         "LEFT JOIN \"wgr_sp_inspektion\" insp " +
                         "ON insp.fid_spielplatz = sp.fid " +
@@ -250,7 +242,6 @@ namespace playground_check_service.Controllers
                             resultPlayground.dateOfLastInspection = (DateTime)dateOfLastInspection;
                         }
                         resultPlayground.hasOpenDeviceDefects = reader.GetBoolean(2);
-                        resultPlayground.hasOpenDeviceDetailDefects = reader.GetBoolean(3);
 
                         resultTemp.Add(resultPlayground);
                     }

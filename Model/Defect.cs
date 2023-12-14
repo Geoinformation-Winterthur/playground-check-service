@@ -10,6 +10,7 @@ namespace playground_check_service.Model
     public class Defect
     {
         public int tid { get; set; }
+        public int playdeviceFid { get; set; }
         public string priority { get; set; } = "";
         public string defectDescription { get; set; } = "";
         public DateTime? dateCreation { get; set; }

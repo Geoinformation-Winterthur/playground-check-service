@@ -66,13 +66,13 @@ namespace playground_check_service.Controllers
         }
 
 
-        internal static void writeAllDefects(Defect[] defects, int inspectionReportTid, User userFromDb,
-                    NpgsqlConnection pgConn, bool dryRun)
+        internal static void WriteAllDefects(Defect[] defects, int inspectionTid,
+                     User userFromDb, bool dryRun)
         {
-            if (defects != null && inspectionReportTid > 0 && userFromDb != null
+            if (defects != null && inspectionTid > 0 && userFromDb != null
                     && userFromDb.fid != 0)
             {
-                DefectDAO defectDao = new DefectDAO();
+                DefectDAO defectDao = new();
                 Dictionary<string, int> defectPriorityNames = defectDao.GetDefectPriorityIds();
 
                 foreach (Defect defect in defects)
@@ -80,10 +80,9 @@ namespace playground_check_service.Controllers
                     if (defect != null && defect.defectDescription != null &&
                             defect.defectDescription.Trim().Length != 0)
                     {
-                        int idPriority = -1;
-                        defectPriorityNames.TryGetValue(defect.priority, out idPriority);
+                        defectPriorityNames.TryGetValue(defect.priority, out int idPriority);
 
-                        defectDao.Insert(defect, idPriority, inspectionReportTid,
+                        DefectDAO.Insert(defect, idPriority, inspectionTid,
                                 userFromDb, dryRun);
                     }
                 }

@@ -18,7 +18,6 @@ namespace playground_check_service.Model
         public bool maintenanceDone { get; set; }
         public string maintenanceComment { get; set; } = "";
         public string fallProtectionType { get; set; } = "";
-        public Defect[] defects { get; set; } = new Defect[0];
 
         public int playdeviceFid { get; set; }
         public int playdeviceDetailFid { get; set; }

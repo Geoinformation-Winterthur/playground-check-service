@@ -34,7 +34,8 @@ namespace playground_check_service.Controllers
         // POST inspection/
         [HttpPost]
         [Authorize]
-        public ActionResult<ErrorMessage> Post([FromBody] InspectionReport[] inspectionReports, bool dryRun = false)
+        public ActionResult<ErrorMessage> Post([FromBody] InspectionReportsAndDefects inspectionReportsAndDefects,
+                        bool dryRun = false)
         {
             ErrorMessage result = new ErrorMessage();
             User userFromDb = LoginController.getAuthorizedUser(this.User, dryRun);
@@ -46,17 +47,19 @@ namespace playground_check_service.Controllers
                 // Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung.
             }
 
-            if (inspectionReports == null || inspectionReports.Length == 0)
+            if (inspectionReportsAndDefects == null || 
+                    inspectionReportsAndDefects.inspectionReports == null ||
+                        inspectionReportsAndDefects.inspectionReports.Length == 0)
             {
                 result.errorMessage = "SPK-0";
                 return Ok(result);  // Es wurden keine Kontrollberichte empfangen.
             }
 
-            string inspectionType = inspectionReports[0].inspectionType;
+            string inspectionType = inspectionReportsAndDefects.inspectionReports[0].inspectionType;
 
             Dictionary<int, DateTime> playdeviceDates = new Dictionary<int, DateTime>();
             Dictionary<int, DateTime> playdeviceDetailDates = new Dictionary<int, DateTime>();
-            foreach (InspectionReport inspectionReport in inspectionReports)
+            foreach (InspectionReport inspectionReport in inspectionReportsAndDefects.inspectionReports)
             {
                 if (inspectionReport.inspectionType != inspectionType)
                 {
@@ -149,15 +152,15 @@ namespace playground_check_service.Controllers
                     }
 
                     int inspectionTid = -1;
-                    if (inspectionReports.Length != 0)
-                    {
-                        inspectionTid = InspectionController.writeInspection(inspectionReports[0],
+
+                    inspectionTid = InspectionController.writeInspection(
+                                        inspectionReportsAndDefects.inspectionReports[0],
                                         userFromDb, pgConn, dryRun);
-                    }
+                    
 
                     NpgsqlCommand selectIfCanBeChecked;
                     bool canBeChecked;
-                    foreach (InspectionReport inspectionReport in inspectionReports)
+                    foreach (InspectionReport inspectionReport in inspectionReportsAndDefects.inspectionReports)
                     {
                         canBeChecked = false;
                         selectIfCanBeChecked = pgConn.CreateCommand();
@@ -175,11 +178,15 @@ namespace playground_check_service.Controllers
 
                         if (canBeChecked)
                         {
-                            InspectionController.writeInspectionReport(inspectionTid, inspectionReport,
-                                    userFromDb, pgConn, dryRun);
+                            WriteInspectionReport(inspectionTid, inspectionReport,
+                                            userFromDb, pgConn, dryRun);
+
                         }
 
                     }
+
+                    DefectController.WriteAllDefects(inspectionReportsAndDefects.defects,
+                                inspectionTid, userFromDb, dryRun);
 
                     NpgsqlCommand commitTrans = pgConn.CreateCommand();
                     commitTrans.CommandText = "COMMIT TRANSACTION";
@@ -237,9 +244,7 @@ namespace playground_check_service.Controllers
         private static int writeInspection(InspectionReport exampleInspectionReport,
                     User userFromDb, NpgsqlConnection pgConn, bool dryRun)
         {
-            int inspectionTid = -1;
             int inspectorFid = -1;
-            int playgroundFid = -1;
             int inspectionTypeId = -1;
 
             NpgsqlCommand selectInspectorFid;
@@ -277,8 +282,7 @@ namespace playground_check_service.Controllers
                 }
             }
 
-
-            playgroundFid = InspectionController._GetPlaygroundFid(exampleInspectionReport, pgConn);
+            int playgroundFid = _GetPlaygroundFid(exampleInspectionReport, pgConn);
 
             if (dryRun) return -1;
 
@@ -297,15 +301,15 @@ namespace playground_check_service.Controllers
             insertInspectionCommand.Parameters.AddWithValue("datum_inspektion", dateOfService);
             insertInspectionCommand.Parameters.AddWithValue("fid_kontrolleur",
                         inspectorFid != -1 ? inspectorFid : DBNull.Value);
-            inspectionTid = (int)insertInspectionCommand.ExecuteScalar();
+            int inspectionTid = (int)insertInspectionCommand.ExecuteScalar();
 
             return inspectionTid;
         }
 
-        private static void writeInspectionReport(int inspectionTid, InspectionReport inspectionReport,
+        private static int WriteInspectionReport(int inspectionTid, InspectionReport inspectionReport,
                     User userFromDb, NpgsqlConnection pgConn, bool dryRun)
         {
-            if (dryRun) return;
+            if (dryRun) return -1;
 
             NpgsqlCommand insertInspectionReportCommand;
             insertInspectionReportCommand = pgConn.CreateCommand();
@@ -348,11 +352,8 @@ namespace playground_check_service.Controllers
             insertInspectionReportCommand.Parameters.AddWithValue("wartung_kommentar", inspectionReport.maintenanceComment);
             insertInspectionReportCommand.Parameters.AddWithValue("fallschutz", inspectionReport.fallProtectionType);
 
-            int inspectionReportTid = (int)insertInspectionReportCommand.ExecuteScalar();
+            return (int)insertInspectionReportCommand.ExecuteScalar();
 
-
-            DefectController.writeAllDefects(inspectionReport.defects,
-                                    inspectionReportTid, userFromDb, pgConn, dryRun);
         }
 
         private static int _GetPlaygroundFid(InspectionReport exampleInspectionReport, NpgsqlConnection pgConn)

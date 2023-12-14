@@ -14,8 +14,6 @@ namespace playground_check_service.Model
 
         public bool hasOpenDeviceDefects { get; set; } = false;
         
-        public bool hasOpenDeviceDetailDefects { get; set; } = false;
-
         public PlaydeviceFeature[] playdevices { get; set; }
                 = new PlaydeviceFeature[0];
 
