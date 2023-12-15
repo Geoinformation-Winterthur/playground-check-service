@@ -739,23 +739,25 @@ namespace playground_check_service.Controllers
             return inspectionReport;
         }
 
-        internal static string[] _GetRenovationTypes()
+        internal static Enumeration[] _GetRenovationTypes()
         {
-            List<string> result = new List<string>();
+            List<Enumeration> result = new();
 
             using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
             {
                 pgConn.Open();
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
-                selectComm.CommandText = "SELECT value " +
+                selectComm.CommandText = "SELECT id, value " +
                             "FROM \"wgr_sp_sanierungsart_tbd\"";
 
                 using (NpgsqlDataReader reader = selectComm.ExecuteReader())
                 {
+                    Enumeration renovationEnum = new();
                     while (reader.Read())
                     {
-                        string fullDescription = reader.GetString(0);
-                        result.Add(fullDescription);
+                        renovationEnum.Id = reader.GetInt32(0);
+                        renovationEnum.Value = reader.GetString(1);
+                        result.Add(renovationEnum);
                     }
                 }
                 pgConn.Close();
