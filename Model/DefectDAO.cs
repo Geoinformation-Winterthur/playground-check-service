@@ -139,7 +139,8 @@ namespace playground_check_service.Model
             selectDefectsCommand.CommandText = "SELECT m.tid, d.short_value, d.value, m.beschrieb, " +
                     "m.datum_erledigung, m.fid_erledigung, m.bemerkunng, b.datum_inspektion, " +
                     "m.picture1_base64, m.picture2_base64, m.picture3_base64, " +
-                    "m.picture1_base64_thumb, m.picture2_base64_thumb, m.picture3_base64_thumb " +
+                    "m.picture1_base64_thumb, m.picture2_base64_thumb, m.picture3_base64_thumb, " +
+                    "m.id_zustaendig_behebung " + 
                     "FROM \"wgr_sp_insp_mangel\" m " +
                     "JOIN \"wgr_sp_inspektion\" b ON m.tid_inspektion = b.tid " +
                     "LEFT JOIN \"wgr_sp_dringlichkeit_tbd\" d ON m.id_dringlichkeit = d.id " +
@@ -191,6 +192,10 @@ namespace playground_check_service.Model
             {
                 defect.picture3Base64StringThumb = reader.GetString(13);
             }
+            if (!reader.IsDBNull(14))
+            {
+                defect.defectsResponsibleBodyId = reader.GetInt32(14);
+            }
             return defect;
         }
 
@@ -204,13 +209,13 @@ namespace playground_check_service.Model
                     "(tid, fid_spielgeraet, tid_inspektion, id_dringlichkeit, beschrieb, bemerkunng, " +
                     "picture1_base64, picture2_base64, picture3_base64, " +
                     "picture1_base64_thumb, picture2_base64_thumb, picture3_base64_thumb, " +
-                    "datum_erledigung, fid_erledigung)" +
+                    "datum_erledigung, fid_erledigung, id_zustaendig_behebung)" +
                     "VALUES (" +
                     "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_mangel\"), " +
                     "@fid_spielgeraet, @tid_inspektion, @dringlichkeit, @beschrieb, " +
                     "@bemerkung, @picture1_base64, @picture2_base64, @picture3_base64, " +
                     "@picture1_base64_thumb, @picture2_base64_thumb, @picture3_base64_thumb, " +
-                    "@datum_erledigung, @fid_erledigung)";
+                    "@datum_erledigung, @fid_erledigung, @id_zustaendig_behebung)";
 
 
             insertDefectCommand.Parameters.AddWithValue("tid_inspektion", inspectionTid);
@@ -224,6 +229,9 @@ namespace playground_check_service.Model
             insertDefectCommand.Parameters.AddWithValue("picture1_base64_thumb", defect.picture1Base64StringThumb ?? "");
             insertDefectCommand.Parameters.AddWithValue("picture2_base64_thumb", defect.picture2Base64StringThumb ?? "");
             insertDefectCommand.Parameters.AddWithValue("picture3_base64_thumb", defect.picture3Base64StringThumb ?? "");
+            insertDefectCommand.Parameters.AddWithValue("id_zustaendig_behebung",
+                            defect.defectsResponsibleBodyId > 0 ? defect.defectsResponsibleBodyId : DBNull.Value);
+
             if (defect.dateDone != null)
             {
                 NpgsqlDate dateDone = (NpgsqlDate)defect.dateDone;

@@ -331,7 +331,7 @@ namespace playground_check_service.Controllers
                 {
                     currentPlayground = new Playground();
                     reader.Read();
-                    currentPlayground.id = reader.GetInt32(0);
+                    currentPlayground.Id = reader.GetInt32(0);
                     currentPlayground.name = reader.IsDBNull(1) ? "" : reader.GetString(1);
                 }
                 pgConn.Close();
@@ -346,7 +346,11 @@ namespace playground_check_service.Controllers
 
                 currentPlayground.inspectionTypeOptions = InspectionTypesController._GetTypes();
 
-                currentPlayground.playdevices = this._ReadPlaydevicesOfPlayground(currentPlayground.id);
+                currentPlayground.renovationTypeOptions = _GetRenovationTypes();
+
+                currentPlayground.defectsResponsibleBodyOptions = _GetDefectsResponsibleBodyTypes();
+
+                currentPlayground.playdevices = this._ReadPlaydevicesOfPlayground(currentPlayground.Id);
 
                 if (currentPlayground.playdevices != null)
                 {
@@ -733,6 +737,59 @@ namespace playground_check_service.Controllers
             inspectionReport.maintenanceComment = reader.IsDBNull(9) ? "" : reader.GetString(9);
             inspectionReport.fallProtectionType = reader.IsDBNull(10) ? "" : reader.GetString(10);
             return inspectionReport;
+        }
+
+        internal static string[] _GetRenovationTypes()
+        {
+            List<string> result = new List<string>();
+
+            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+            {
+                pgConn.Open();
+                NpgsqlCommand selectComm = pgConn.CreateCommand();
+                selectComm.CommandText = "SELECT value " +
+                            "FROM \"wgr_sp_sanierungsart_tbd\"";
+
+                using (NpgsqlDataReader reader = selectComm.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string fullDescription = reader.GetString(0);
+                        result.Add(fullDescription);
+                    }
+                }
+                pgConn.Close();
+            }
+            return result.ToArray();
+        }
+
+        internal static Enumeration[] _GetDefectsResponsibleBodyTypes()
+        {
+            List<Enumeration> result = new();
+
+            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+            {
+                pgConn.Open();
+                NpgsqlCommand selectComm = pgConn.CreateCommand();
+                selectComm.CommandText = "SELECT id, value " +
+                            "FROM \"wgr_sp_zust_mangelbeheb_tbd\"";
+
+                using (NpgsqlDataReader reader = selectComm.ExecuteReader())
+                {
+                    Enumeration defectsResponsibleBodyEnum;
+                    while (reader.Read())
+                    {
+                        defectsResponsibleBodyEnum = new()
+                        {
+                            Id = reader.GetInt32(0),
+                            Value = reader.GetString(1)
+                        };
+                        result.Add(defectsResponsibleBodyEnum);
+                    }
+                }
+                pgConn.Close();
+            }
+            return result.ToArray();
         }
 
     }
