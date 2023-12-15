@@ -2,9 +2,6 @@
 //      Author: Edgar Butwilowski
 //      Copyright (c) Vermessungsamt Winterthur. All rights reserved.
 // </copyright>
-
-using System;
-
 namespace playground_check_service.Model
 {
     public class Defect
@@ -17,11 +14,6 @@ namespace playground_check_service.Model
         public DateTime? dateDone { get; set; }
         public string defectComment { get; set; } = "";
         public int defectsResponsibleBodyId { get; set; } = -1;
-        public string picture1Base64String { get; set; } = "";
-        public string picture1Base64StringThumb { get; set; } = "";
-        public string picture2Base64String { get; set; } = "";
-        public string picture2Base64StringThumb { get; set; } = "";
-        public string picture3Base64String { get; set; } = "";
-        public string picture3Base64StringThumb { get; set; } = "";
+        public DefectPicture[] pictures { get; set;} = Array.Empty<DefectPicture>();
     }
 }

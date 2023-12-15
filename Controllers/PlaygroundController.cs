@@ -460,63 +460,60 @@ namespace playground_check_service.Controllers
 
         private void readReportsOfPlaydevices(PlaydeviceFeature[] playdevices, string[] inspectionTypes)
         {
-            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+            using NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString);
+            pgConn.Open();
+            foreach (PlaydeviceFeature playdevice in playdevices)
             {
-                pgConn.Open();
-                foreach (PlaydeviceFeature playdevice in playdevices)
+                List<InspectionReport> lastInspectionReports = new List<InspectionReport>();
+                List<InspectionReport> nextToLastInspectionReports = new List<InspectionReport>();
+
+                foreach (string inspectionType in inspectionTypes)
                 {
-                    List<InspectionReport> lastInspectionReports = new List<InspectionReport>();
-                    List<InspectionReport> nextToLastInspectionReports = new List<InspectionReport>();
 
-                    foreach (string inspectionType in inspectionTypes)
+                    InspectionCriterionDAO inspectionCriterionDAO = new InspectionCriterionDAO();
+                    List<string> inspectionDates = inspectionCriterionDAO
+                            .GetInspectionDatesOfPlaydevice(playdevice.properties.fid,
+                                        inspectionType, false);
+
+                    NpgsqlCommand selectInspectionComm = pgConn.CreateCommand();
+                    Boolean firstRun = true;
+                    foreach (string inspectionDate in inspectionDates)
                     {
+                        selectInspectionComm.CommandText = "SELECT tid, inspektionsart, datum_inspektion, " +
+                                "kontrolleur, pruefung_text, " +
+                                "pruefung_erledigt, pruefung_kommentar, " +
+                                "wartung_text, wartung_erledigung, " +
+                                "wartung_kommentar, fallschutz " +
+                                "FROM \"wgr_sp_insp_bericht\" " +
+                                "WHERE fid_spielgeraet=" + playdevice.properties.fid + " " +
+                                "AND inspektionsart='" + inspectionType + "' " +
+                                "AND datum_inspektion='" + inspectionDate + "'";
 
-                        InspectionCriterionDAO inspectionCriterionDAO = new InspectionCriterionDAO();
-                        List<string> inspectionDates = inspectionCriterionDAO
-                                .GetInspectionDatesOfPlaydevice(playdevice.properties.fid,
-                                            inspectionType, false);
-
-                        NpgsqlCommand selectInspectionComm = pgConn.CreateCommand();
-                        Boolean firstRun = true;
-                        foreach (string inspectionDate in inspectionDates)
+                        using (NpgsqlDataReader reader = selectInspectionComm.ExecuteReader())
                         {
-                            selectInspectionComm.CommandText = "SELECT tid, inspektionsart, datum_inspektion, " +
-                                    "kontrolleur, pruefung_text, " +
-                                    "pruefung_erledigt, pruefung_kommentar, " +
-                                    "wartung_text, wartung_erledigung, " +
-                                    "wartung_kommentar, fallschutz " +
-                                    "FROM \"wgr_sp_insp_bericht\" " +
-                                    "WHERE fid_spielgeraet=" + playdevice.properties.fid + " " +
-                                    "AND inspektionsart='" + inspectionType + "' " +
-                                    "AND datum_inspektion='" + inspectionDate + "'";
-
-                            using (NpgsqlDataReader reader = selectInspectionComm.ExecuteReader())
+                            while (reader.Read())
                             {
-                                while (reader.Read())
+                                if (firstRun)
                                 {
-                                    if (firstRun)
-                                    {
-                                        InspectionReport lastInspectionReport = readInspectionReport(reader);
-                                        lastInspectionReports.Add(lastInspectionReport);
+                                    InspectionReport lastInspectionReport = readInspectionReport(reader);
+                                    lastInspectionReports.Add(lastInspectionReport);
 
-                                    }
-                                    else
-                                    {
-                                        InspectionReport nextToLastInspectionReport = readInspectionReport(reader);
-                                        nextToLastInspectionReports.Add(nextToLastInspectionReport);
-                                    }
+                                }
+                                else
+                                {
+                                    InspectionReport nextToLastInspectionReport = readInspectionReport(reader);
+                                    nextToLastInspectionReports.Add(nextToLastInspectionReport);
                                 }
                             }
-                            firstRun = false;
                         }
+                        firstRun = false;
                     }
-                    playdevice.properties.lastInspectionReports = lastInspectionReports.ToArray();
-                    playdevice.properties.nextToLastInspectionReports = nextToLastInspectionReports.ToArray();
-
-                    DefectDAO defectDao = new DefectDAO();
-                    playdevice.properties.defects = defectDao.Read(playdevice.properties.fid, false);
                 }
-                pgConn.Close();
+                playdevice.properties.lastInspectionReports = lastInspectionReports.ToArray();
+                playdevice.properties.nextToLastInspectionReports = nextToLastInspectionReports.ToArray();
+
+                DefectDAO defectDao = new();
+                playdevice.properties.defects = defectDao.Read(playdevice.properties.fid);
             }
         }
 
@@ -575,8 +572,6 @@ namespace playground_check_service.Controllers
                     playdeviceDetail.properties.lastInspectionReports = lastInspectionReports.ToArray();
                     playdeviceDetail.properties.nextToLastInspectionReports = nextToLastInspectionReports.ToArray();
 
-                    DefectDAO defectDao = new DefectDAO();
-                    playdeviceDetail.properties.defects = defectDao.Read(playdeviceDetail.properties.fid, true);
                 }
                 pgConn.Close();
             }

@@ -70,11 +70,11 @@ namespace playground_check_service.Model
             return result;
         }
 
-        internal Defect[] Read(int playdeviceFid, bool isDetail)
+        internal Defect[] Read(int playdeviceFid)
         {
-            List<Defect> result = new List<Defect>();
+            List<Defect> result = new();
 
-            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+            using (NpgsqlConnection pgConn = new(AppConfig.connectionString))
             {
                 pgConn.Open();
                 NpgsqlCommand selectDefectsComm = this._CreateCommandForSelect(
@@ -84,13 +84,17 @@ namespace playground_check_service.Model
                 {
                     while (reader.Read())
                     {
-                        Defect defect = this._ReadDefect(reader);
+                        Defect defect = _ReadDefect(reader);
                         if (defect.tid != -1)
                         {
                             result.Add(defect);
                         }
                     }
                 }
+
+                foreach(Defect defect in result)
+                    defect.pictures = ReadAllPictures(defect.tid, pgConn);
+                
             }
             return result.ToArray();
         }
@@ -102,9 +106,18 @@ namespace playground_check_service.Model
             {
                 using NpgsqlConnection pgConn = new(AppConfig.connectionString);
                 pgConn.Open();
+
                 DbCommand insertDefectCommand = CreateCommandForInsert(defect, idPriority,
-                                inspectionTid, pgConn, userFromDb, dryRun);
-                insertDefectCommand?.ExecuteNonQuery();
+                                inspectionTid, pgConn, userFromDb);
+                int defectNewTid = -1;
+                if (!dryRun) defectNewTid = (int)insertDefectCommand.ExecuteScalar();
+
+                foreach (DefectPicture defectPic in defect.pictures)
+                {
+                    DbCommand insertDefectPicCommand = CreateCommandForInsertPictures(defectPic,
+                            defectNewTid, pgConn);
+                    if (!dryRun) insertDefectPicCommand.ExecuteNonQuery();
+                }
             }
         }
 
@@ -138,9 +151,7 @@ namespace playground_check_service.Model
             NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
             selectDefectsCommand.CommandText = "SELECT m.tid, d.short_value, d.value, m.beschrieb, " +
                     "m.datum_erledigung, m.fid_erledigung, m.bemerkunng, b.datum_inspektion, " +
-                    "m.picture1_base64, m.picture2_base64, m.picture3_base64, " +
-                    "m.picture1_base64_thumb, m.picture2_base64_thumb, m.picture3_base64_thumb, " +
-                    "m.id_zustaendig_behebung " + 
+                    "m.id_zustaendig_behebung " +
                     "FROM \"wgr_sp_insp_mangel\" m " +
                     "JOIN \"wgr_sp_inspektion\" b ON m.tid_inspektion = b.tid " +
                     "LEFT JOIN \"wgr_sp_dringlichkeit_tbd\" d ON m.id_dringlichkeit = d.id " +
@@ -151,8 +162,10 @@ namespace playground_check_service.Model
 
         private Defect _ReadDefect(NpgsqlDataReader reader)
         {
-            Defect defect = new Defect();
-            defect.tid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0);
+            Defect defect = new()
+            {
+                tid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0)
+            };
             string shortValue = reader.IsDBNull(1) ? "Unbekannt" : reader.GetString(1);
             string longValue = reader.IsDBNull(2) ? "Unbekannt" : reader.GetString(2);
             defect.priority = DefectDAO._ConcatPriorityOfDefect(shortValue, longValue);
@@ -170,65 +183,54 @@ namespace playground_check_service.Model
             }
             if (!reader.IsDBNull(8))
             {
-                defect.picture1Base64String = reader.GetString(8);
-            }
-            if (!reader.IsDBNull(9))
-            {
-                defect.picture2Base64String = reader.GetString(9);
-            }
-            if (!reader.IsDBNull(10))
-            {
-                defect.picture3Base64String = reader.GetString(10);
-            }
-            if (!reader.IsDBNull(11))
-            {
-                defect.picture1Base64StringThumb = reader.GetString(11);
-            }
-            if (!reader.IsDBNull(12))
-            {
-                defect.picture2Base64StringThumb = reader.GetString(12);
-            }
-            if (!reader.IsDBNull(13))
-            {
-                defect.picture3Base64StringThumb = reader.GetString(13);
-            }
-            if (!reader.IsDBNull(14))
-            {
-                defect.defectsResponsibleBodyId = reader.GetInt32(14);
+                defect.defectsResponsibleBodyId = reader.GetInt32(8);
             }
             return defect;
         }
 
-        private static DbCommand? CreateCommandForInsert(Defect defect, int idPriority,
-                    int inspectionTid, NpgsqlConnection pgConn, User userFromDb, bool dryRun)
+        private static DefectPicture[] ReadAllPictures(int defectTid,
+                    NpgsqlConnection pgConn)
         {
-            if (dryRun) return null;
+            List<DefectPicture> result = new();
 
+            NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
+            selectDefectsCommand.CommandText = @$"SELECT picture_base64, picture_base64_thumb
+                                FROM ""wgr_sp_insp_mangel_foto""
+                                WHERE tid_maengel={defectTid}";
+
+            using (NpgsqlDataReader reader = selectDefectsCommand.ExecuteReader())
+            {
+                DefectPicture defectPicture;
+                while (reader.Read())
+                {
+                    defectPicture = new()
+                    {
+                        base64StringPicture = reader.IsDBNull(0) ? "" : reader.GetString(0),
+                        base64StringPictureThumb = reader.IsDBNull(1) ? "" : reader.GetString(1)
+                    };
+                    result.Add(defectPicture);
+                }
+            }
+            return result.ToArray();
+        }
+
+        private static DbCommand CreateCommandForInsert(Defect defect, int idPriority,
+                    int inspectionTid, NpgsqlConnection pgConn, User userFromDb)
+        {
             NpgsqlCommand insertDefectCommand = pgConn.CreateCommand();
             insertDefectCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel\" " +
                     "(tid, fid_spielgeraet, tid_inspektion, id_dringlichkeit, beschrieb, bemerkunng, " +
-                    "picture1_base64, picture2_base64, picture3_base64, " +
-                    "picture1_base64_thumb, picture2_base64_thumb, picture3_base64_thumb, " +
                     "datum_erledigung, fid_erledigung, id_zustaendig_behebung)" +
                     "VALUES (" +
                     "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_mangel\"), " +
                     "@fid_spielgeraet, @tid_inspektion, @dringlichkeit, @beschrieb, " +
-                    "@bemerkung, @picture1_base64, @picture2_base64, @picture3_base64, " +
-                    "@picture1_base64_thumb, @picture2_base64_thumb, @picture3_base64_thumb, " +
-                    "@datum_erledigung, @fid_erledigung, @id_zustaendig_behebung)";
-
+                    "@bemerkung, @datum_erledigung, @fid_erledigung, @id_zustaendig_behebung) RETURNING tid";
 
             insertDefectCommand.Parameters.AddWithValue("tid_inspektion", inspectionTid);
             insertDefectCommand.Parameters.AddWithValue("fid_spielgeraet", defect.playdeviceFid);
             insertDefectCommand.Parameters.AddWithValue("dringlichkeit", idPriority);
             insertDefectCommand.Parameters.AddWithValue("beschrieb", defect.defectDescription ?? "");
             insertDefectCommand.Parameters.AddWithValue("bemerkung", defect.defectComment ?? "");
-            insertDefectCommand.Parameters.AddWithValue("picture1_base64", defect.picture1Base64String ?? "");
-            insertDefectCommand.Parameters.AddWithValue("picture2_base64", defect.picture2Base64String ?? "");
-            insertDefectCommand.Parameters.AddWithValue("picture3_base64", defect.picture3Base64String ?? "");
-            insertDefectCommand.Parameters.AddWithValue("picture1_base64_thumb", defect.picture1Base64StringThumb ?? "");
-            insertDefectCommand.Parameters.AddWithValue("picture2_base64_thumb", defect.picture2Base64StringThumb ?? "");
-            insertDefectCommand.Parameters.AddWithValue("picture3_base64_thumb", defect.picture3Base64StringThumb ?? "");
             insertDefectCommand.Parameters.AddWithValue("id_zustaendig_behebung",
                             defect.defectsResponsibleBodyId > 0 ? defect.defectsResponsibleBodyId : DBNull.Value);
 
@@ -244,6 +246,24 @@ namespace playground_check_service.Model
                 insertDefectCommand.Parameters.AddWithValue("fid_erledigung", DBNull.Value);
             }
             return insertDefectCommand;
+        }
+
+        private static DbCommand CreateCommandForInsertPictures(DefectPicture defectPic,
+                        int defectTid, NpgsqlConnection pgConn)
+        {
+            NpgsqlCommand insertDefectPicCommand = pgConn.CreateCommand();
+            insertDefectPicCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel_foto\" " +
+                    "(tid, tid_maengel, picture_base64, picture_base64_thumb)" +
+                    "VALUES (" +
+                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_mangel_foto\"), " +
+                    "@tid_maengel, @picture_base64, @picture_base64_thumb)";
+
+
+            insertDefectPicCommand.Parameters.AddWithValue("tid_maengel", defectTid);
+            insertDefectPicCommand.Parameters.AddWithValue("picture_base64", defectPic.base64StringPicture);
+            insertDefectPicCommand.Parameters.AddWithValue("picture_base64_thumb", defectPic.base64StringPictureThumb);
+
+            return insertDefectPicCommand;
         }
 
         private DbCommand _CreateCommandForUpdate(Defect defect, NpgsqlConnection pgConn,
