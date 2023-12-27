@@ -13,6 +13,7 @@ using System.Text;
 using playground_check_service.Configuration;
 using NetTopologySuite.Geometries;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
+using System.Net.NetworkInformation;
 
 namespace playground_check_service.Controllers
 {
@@ -199,7 +200,8 @@ namespace playground_check_service.Controllers
                 pgConn.Open();
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
                 selectComm.CommandText = "SELECT DISTINCT ON (sp.name) " +
-                        "sp.name, insp.datum_inspektion, " +
+                        "sp.name, insp.datum_inspektion, sp.inspektion_aussetzen_von, " +
+                        "sp.inspektion_aussetzen_bis, " +
                         "(SELECT count(*) > 0 " +
                         "FROM \"wgr_sp_insp_mangel\" mangel " +
                         "JOIN \"gr_v_spielgeraete\" geraete ON mangel.fid_spielgeraet = geraete.fid " +
@@ -214,7 +216,8 @@ namespace playground_check_service.Controllers
                         !inspectionType.Equals("Keine Inspektion"))
                 {
                     selectComm.CommandText = "SELECT DISTINCT ON (sp.name) " +
-                        "sp.name, insp.datum_inspektion, false, false " +
+                        "sp.name, insp.datum_inspektion, sp.inspektion_aussetzen_von, " +
+                        "sp.inspektion_aussetzen_bis, false " +
                         "FROM \"wgr_sp_spielplatz\" sp " +
                         "JOIN \"wgr_sp_inspart_kontr\" ikt ON sp.fid = ikt.fid_spielplatz " +
                         "JOIN \"wgr_sp_kontrolleur\" kt ON kt.fid = ikt.fid_kontrolleur " +
@@ -241,9 +244,29 @@ namespace playground_check_service.Controllers
                             NpgsqlDate dateOfLastInspection = reader.GetDate(1);
                             resultPlayground.dateOfLastInspection = (DateTime)dateOfLastInspection;
                         }
-                        resultPlayground.hasOpenDeviceDefects = reader.GetBoolean(2);
+                        if (!reader.IsDBNull(2))
+                        {
+                            NpgsqlDate suspendInspectionFrom = reader.GetDate(2);
+                            resultPlayground.suspendInspectionFrom = (DateTime)suspendInspectionFrom;
+                        }
+                        if (!reader.IsDBNull(3))
+                        {
+                            NpgsqlDate suspendInspectionTo = reader.GetDate(3);
+                            resultPlayground.suspendInspectionTo = (DateTime)suspendInspectionTo;
+                        }
+                        resultPlayground.hasOpenDeviceDefects = reader.GetBoolean(4);
 
-                        resultTemp.Add(resultPlayground);
+                        _CalculateValueIsInspectionSuspended(resultPlayground);
+
+                        if (inspectionType.Equals("Keine Inspektion"))
+                        {
+                            resultTemp.Add(resultPlayground);
+                        }
+                        else if (!resultPlayground.inspectionSuspended)
+                        {
+                            resultTemp.Add(resultPlayground);
+                        }
+
                     }
                 }
                 pgConn.Close();
@@ -318,12 +341,14 @@ namespace playground_check_service.Controllers
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
                 if (name != null)
                 {
-                    selectComm.CommandText = "SELECT fid, name FROM \"wgr_sp_spielplatz\" WHERE name=@name";
+                    selectComm.CommandText = "SELECT fid, name, inspektion_aussetzen_von, inspektion_aussetzen_bis " +
+                        "FROM \"wgr_sp_spielplatz\" WHERE name=@name";
                     selectComm.Parameters.AddWithValue("name", name);
                 }
                 else
                 {
-                    selectComm.CommandText = "SELECT fid, name FROM \"wgr_sp_spielplatz\" WHERE fid=@id";
+                    selectComm.CommandText = "SELECT fid, name, inspektion_aussetzen_von, inspektion_aussetzen_bis " +
+                        "FROM \"wgr_sp_spielplatz\" WHERE fid=@id";
                     selectComm.Parameters.AddWithValue("id", id);
                 }
 
@@ -333,6 +358,19 @@ namespace playground_check_service.Controllers
                     reader.Read();
                     currentPlayground.Id = reader.GetInt32(0);
                     currentPlayground.name = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                    if (!reader.IsDBNull(2))
+                    {
+                        NpgsqlDate suspendInspectionFrom = reader.GetDate(2);
+                        currentPlayground.suspendInspectionFrom = (DateTime)suspendInspectionFrom;
+                    }
+                    if (!reader.IsDBNull(3))
+                    {
+                        NpgsqlDate suspendInspectionTo = reader.GetDate(3);
+                        currentPlayground.suspendInspectionTo = (DateTime)suspendInspectionTo;
+                    }
+
+                    _CalculateValueIsInspectionSuspended(currentPlayground);
+
                 }
                 pgConn.Close();
             }
@@ -440,12 +478,12 @@ namespace playground_check_service.Controllers
                             currentPlaydevice.properties.constructionDate = (DateTime)constructionDate;
                         }
 
-                        if(!reader.IsDBNull(12))
+                        if (!reader.IsDBNull(12))
                         {
                             int idRenovationType = reader.GetInt32(12);
-                            if(idRenovationType == 1)
+                            if (idRenovationType == 1)
                                 currentPlaydevice.properties.renovationType = "Totalsanierung";
-                            else if(idRenovationType == 2)
+                            else if (idRenovationType == 2)
                                 currentPlaydevice.properties.renovationType = "Teilsanierung";
                         }
 
@@ -787,6 +825,37 @@ namespace playground_check_service.Controllers
                 pgConn.Close();
             }
             return result.ToArray();
+        }
+
+        private static void _CalculateValueIsInspectionSuspended(Playground playground)
+        {
+            DateTime today = DateTime.Now.Date;
+            playground.inspectionSuspended = true;
+            if (playground.suspendInspectionFrom == null && playground.suspendInspectionTo == null)
+            {
+                playground.inspectionSuspended = false;
+            }
+            else if (playground.suspendInspectionFrom == null)
+            {
+                if (today > playground.suspendInspectionTo)
+                {
+                    playground.inspectionSuspended = false;
+                }
+            }
+            else if (playground.suspendInspectionTo == null)
+            {
+                if (today < playground.suspendInspectionFrom)
+                {
+                    playground.inspectionSuspended = false;
+                }
+            }
+            else
+            {
+                if (today < playground.suspendInspectionFrom || today > playground.suspendInspectionTo)
+                {
+                    playground.inspectionSuspended = false;
+                }
+            }
         }
 
     }

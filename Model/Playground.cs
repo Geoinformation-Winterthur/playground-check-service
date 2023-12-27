@@ -21,7 +21,9 @@ public class Playground
     public string address { get; set; } = "";
 
     public DateTime dateOfLastInspection { get; set; }
-
+    public DateTime? suspendInspectionFrom { get; set; }
+    public DateTime? suspendInspectionTo { get; set; }
+    public bool inspectionSuspended { get; set; } = false;
     public bool hasOpenDeviceDefects { get; set; } = false;
 
     public PlaydeviceFeature[] playdevices { get; set; }

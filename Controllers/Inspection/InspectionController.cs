@@ -210,37 +210,6 @@ namespace playground_check_service.Controllers
 
         }
 
-        private static InspectionReport readInspectionReport(NpgsqlDataReader reader)
-        {
-            InspectionReport inspectionReport = new InspectionReport();
-            inspectionReport.inspectionType = reader.IsDBNull(0) ? "" : reader.GetString(0);
-            if (!reader.IsDBNull(1))
-            {
-                NpgsqlDate dateOfInspection = reader.GetDate(1);
-                inspectionReport.dateOfService = (DateTime)dateOfInspection;
-            }
-            inspectionReport.inspector = reader.IsDBNull(2) ? "" : reader.GetString(2);
-            inspectionReport.inspectionText = reader.IsDBNull(3) ? "" : reader.GetString(3);
-            if (reader.IsDBNull(4))
-            {
-                inspectionReport.inspectionDone = false;
-            }
-            else
-            {
-                int inspectionDoneInt = reader.GetInt32(4);
-                if (inspectionDoneInt == 0)
-                {
-                    inspectionReport.inspectionDone = false;
-                }
-                else
-                {
-                    inspectionReport.inspectionDone = true;
-                }
-            }
-            inspectionReport.inspectionComment = reader.IsDBNull(5) ? "" : reader.GetString(5);
-            return inspectionReport;
-        }
-
         private static int writeInspection(InspectionReport exampleInspectionReport,
                     User userFromDb, NpgsqlConnection pgConn, bool dryRun)
         {
