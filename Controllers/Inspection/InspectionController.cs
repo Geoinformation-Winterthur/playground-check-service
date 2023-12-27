@@ -156,7 +156,7 @@ namespace playground_check_service.Controllers
                     inspectionTid = InspectionController.writeInspection(
                                         inspectionReportsAndDefects.inspectionReports[0],
                                         userFromDb, pgConn, dryRun);
-                    
+
 
                     NpgsqlCommand selectIfCanBeChecked;
                     bool canBeChecked;
@@ -284,7 +284,7 @@ namespace playground_check_service.Controllers
 
             int playgroundFid = _GetPlaygroundFid(exampleInspectionReport, pgConn);
 
-            DateTime? targetDateOfInspection = _GetTargetDateOfInspection(playgroundFid, inspectionTypeId, pgConn);
+            NpgsqlDate? targetDateOfInspection = _GetTargetDateOfInspection(playgroundFid, inspectionTypeId, pgConn);
 
             if (dryRun) return -1;
 
@@ -407,12 +407,12 @@ namespace playground_check_service.Controllers
             return result;
         }
 
-        private static DateTime? _GetTargetDateOfInspection(int playgroundFid, int inspectionTypeId, NpgsqlConnection pgConn)
+        private static NpgsqlDate? _GetTargetDateOfInspection(int playgroundFid, int inspectionTypeId, NpgsqlConnection pgConn)
         {
 
             if(inspectionTypeId < 1 || inspectionTypeId > 3) return null;
 
-            DateTime? result = null;
+            NpgsqlDate? result = null;
 
             string inspectionAttrName = "dat_naech_visu_insp";
             switch (inspectionTypeId)
@@ -431,9 +431,9 @@ namespace playground_check_service.Controllers
 
             using (NpgsqlDataReader reader = selectTargetDateComm.ExecuteReader())
             {
-                if (reader.Read())
+                if (reader.Read() && !reader.IsDBNull(0))
                 {
-                    result = reader.IsDBNull(0) ? null : reader.GetDateTime(0);
+                    result = reader.GetDate(0);
                 }
             }
 
