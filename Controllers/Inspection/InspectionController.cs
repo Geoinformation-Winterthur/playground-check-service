@@ -284,15 +284,19 @@ namespace playground_check_service.Controllers
 
             int playgroundFid = _GetPlaygroundFid(exampleInspectionReport, pgConn);
 
+            DateTime? targetDateOfInspection = _GetTargetDateOfInspection(playgroundFid, inspectionTypeId, pgConn);
+
             if (dryRun) return -1;
 
             NpgsqlCommand insertInspectionCommand;
             insertInspectionCommand = pgConn.CreateCommand();
             insertInspectionCommand.CommandText = "INSERT INTO \"wgr_sp_inspektion\" " +
-                    "(tid, id_inspektionsart, fid_spielplatz, datum_inspektion, fid_kontrolleur) " +
+                    "(tid, id_inspektionsart, fid_spielplatz, datum_inspektion, fid_kontrolleur, " +
+                    "datum_soll_inspektion) " +
                     "VALUES (" +
                     "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_inspektion\"), " +
-                    "@id_inspektionsart, @fid_spielplatz, @datum_inspektion, @fid_kontrolleur) RETURNING tid";
+                    "@id_inspektionsart, @fid_spielplatz, @datum_inspektion, @fid_kontrolleur, @datum_soll_inspektion) " +
+                    "RETURNING tid";
             insertInspectionCommand.Parameters.AddWithValue("id_inspektionsart",
                         inspectionTypeId != -1 ? inspectionTypeId : DBNull.Value);
             insertInspectionCommand.Parameters.AddWithValue("fid_spielplatz",
@@ -301,6 +305,8 @@ namespace playground_check_service.Controllers
             insertInspectionCommand.Parameters.AddWithValue("datum_inspektion", dateOfService);
             insertInspectionCommand.Parameters.AddWithValue("fid_kontrolleur",
                         inspectorFid != -1 ? inspectorFid : DBNull.Value);
+            insertInspectionCommand.Parameters.AddWithValue("datum_soll_inspektion",
+                        targetDateOfInspection != null ? targetDateOfInspection : DBNull.Value);
             int inspectionTid = (int)insertInspectionCommand.ExecuteScalar();
 
             return inspectionTid;
@@ -398,6 +404,39 @@ namespace playground_check_service.Controllers
                     }
                 }
             }
+            return result;
+        }
+
+        private static DateTime? _GetTargetDateOfInspection(int playgroundFid, int inspectionTypeId, NpgsqlConnection pgConn)
+        {
+
+            if(inspectionTypeId < 1 || inspectionTypeId > 3) return null;
+
+            DateTime? result = null;
+
+            string inspectionAttrName = "dat_naech_visu_insp";
+            switch (inspectionTypeId)
+            {
+                case 2: inspectionAttrName = "dat_naech_oper_insp";break;
+                case 3: inspectionAttrName = "dat_naech_haupt_insp";break;
+            }
+
+            NpgsqlCommand selectTargetDateComm;
+            selectTargetDateComm = pgConn.CreateCommand();
+            selectTargetDateComm.CommandText = "SELECT " + inspectionAttrName +
+                        " FROM \"wgr_sp_spielplatz\"" +
+                        " WHERE fid = @playground_fid";
+            selectTargetDateComm.Parameters
+                    .AddWithValue("playground_fid", playgroundFid);
+
+            using (NpgsqlDataReader reader = selectTargetDateComm.ExecuteReader())
+            {
+                if (reader.Read())
+                {
+                    result = reader.IsDBNull(0) ? null : reader.GetDateTime(0);
+                }
+            }
+
             return result;
         }
 
