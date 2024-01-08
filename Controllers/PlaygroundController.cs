@@ -12,8 +12,6 @@ using playground_check_service.Model;
 using System.Text;
 using playground_check_service.Configuration;
 using NetTopologySuite.Geometries;
-using Microsoft.AspNetCore.Mvc.ApplicationModels;
-using System.Net.NetworkInformation;
 
 namespace playground_check_service.Controllers
 {
@@ -387,6 +385,8 @@ namespace playground_check_service.Controllers
                 currentPlayground.renovationTypeOptions = _GetRenovationTypes();
 
                 currentPlayground.defectsResponsibleBodyOptions = _GetDefectsResponsibleBodyTypes();
+
+                currentPlayground.documentsOfAcceptanceFids = _GetAcceptanceDocumentsFids(currentPlayground.Id);
 
                 currentPlayground.playdevices = this._ReadPlaydevicesOfPlayground(currentPlayground.Id);
 
@@ -820,6 +820,34 @@ namespace playground_check_service.Controllers
                             Value = reader.GetString(1)
                         };
                         result.Add(defectsResponsibleBodyEnum);
+                    }
+                }
+                pgConn.Close();
+            }
+            return result.ToArray();
+        }
+
+        internal static int[] _GetAcceptanceDocumentsFids(int spielplatzFid)
+        {
+            List<int> result = new();
+
+            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+            {
+                pgConn.Open();
+                NpgsqlCommand selectComm = pgConn.CreateCommand();
+                selectComm.CommandText = "SELECT fid " +
+                            "FROM \"wgr_sp_abnahmen\" " +
+                            "WHERE fid_spielplatz=@fid_spielplatz";
+                selectComm.Parameters.AddWithValue("fid_spielplatz", spielplatzFid);
+
+
+                using (NpgsqlDataReader reader = selectComm.ExecuteReader())
+                {
+                    int acceptanceDocumentFid;
+                    while (reader.Read())
+                    {
+                        acceptanceDocumentFid = reader.GetInt32(0);
+                        result.Add(acceptanceDocumentFid);
                     }
                 }
                 pgConn.Close();

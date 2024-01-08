@@ -35,4 +35,6 @@ public class Playground
     public Enumeration[] defectsResponsibleBodyOptions { get; set; } = Array.Empty<Enumeration>();
 
     public string chosenTypeOfInspection { get; set; } = "";
+
+    public int[] documentsOfAcceptanceFids { get; set; } = Array.Empty<int>();
 }
