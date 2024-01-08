@@ -387,6 +387,7 @@ namespace playground_check_service.Controllers
                 currentPlayground.defectsResponsibleBodyOptions = _GetDefectsResponsibleBodyTypes();
 
                 currentPlayground.documentsOfAcceptanceFids = _GetAcceptanceDocumentsFids(currentPlayground.Id);
+                currentPlayground.certificateDocumentsFids = _GetCertificateDocumentsFids(currentPlayground.Id);
 
                 currentPlayground.playdevices = this._ReadPlaydevicesOfPlayground(currentPlayground.Id);
 
@@ -840,7 +841,6 @@ namespace playground_check_service.Controllers
                             "WHERE fid_spielplatz=@fid_spielplatz";
                 selectComm.Parameters.AddWithValue("fid_spielplatz", spielplatzFid);
 
-
                 using (NpgsqlDataReader reader = selectComm.ExecuteReader())
                 {
                     int acceptanceDocumentFid;
@@ -848,6 +848,33 @@ namespace playground_check_service.Controllers
                     {
                         acceptanceDocumentFid = reader.GetInt32(0);
                         result.Add(acceptanceDocumentFid);
+                    }
+                }
+                pgConn.Close();
+            }
+            return result.ToArray();
+        }
+
+        internal static int[] _GetCertificateDocumentsFids(int spielplatzFid)
+        {
+            List<int> result = new();
+
+            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+            {
+                pgConn.Open();
+                NpgsqlCommand selectComm = pgConn.CreateCommand();
+                selectComm.CommandText = "SELECT fid " +
+                            "FROM \"wgr_sp_zertifikat\" " +
+                            "WHERE fid_spielplatz=@fid_spielplatz";
+                selectComm.Parameters.AddWithValue("fid_spielplatz", spielplatzFid);
+
+                using (NpgsqlDataReader reader = selectComm.ExecuteReader())
+                {
+                    int certificateDocumentFid;
+                    while (reader.Read())
+                    {
+                        certificateDocumentFid = reader.GetInt32(0);
+                        result.Add(certificateDocumentFid);
                     }
                 }
                 pgConn.Close();

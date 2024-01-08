@@ -37,4 +37,5 @@ public class Playground
     public string chosenTypeOfInspection { get; set; } = "";
 
     public int[] documentsOfAcceptanceFids { get; set; } = Array.Empty<int>();
+    public int[] certificateDocumentsFids { get; set; } = Array.Empty<int>();
 }
