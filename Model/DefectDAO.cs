@@ -150,10 +150,9 @@ namespace playground_check_service.Model
         {
             NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
             selectDefectsCommand.CommandText = "SELECT m.tid, d.short_value, d.value, m.beschrieb, " +
-                    "m.datum_erledigung, m.fid_erledigung, m.bemerkunng, b.datum_inspektion, " +
+                    "m.datum_erledigung, m.fid_erledigung, m.bemerkunng, m.datum, " +
                     "m.id_zustaendig_behebung " +
                     "FROM \"wgr_sp_insp_mangel\" m " +
-                    "JOIN \"wgr_sp_inspektion\" b ON m.tid_inspektion = b.tid " +
                     "LEFT JOIN \"wgr_sp_dringlichkeit_tbd\" d ON m.id_dringlichkeit = d.id " +
                     "WHERE m.fid_spielgeraet=" + playdeviceFid +
                     " AND m.datum_erledigung IS NULL";
