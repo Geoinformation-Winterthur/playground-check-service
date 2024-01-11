@@ -193,7 +193,8 @@ namespace playground_check_service.Model
             List<DefectPicture> result = new();
 
             NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
-            selectDefectsCommand.CommandText = @$"SELECT picture_base64, picture_base64_thumb
+            selectDefectsCommand.CommandText = @$"SELECT picture_base64, picture_base64_thumb,
+                                  zeitpunkt
                                 FROM ""wgr_sp_insp_mangel_foto""
                                 WHERE tid_maengel={defectTid}";
 
@@ -205,7 +206,8 @@ namespace playground_check_service.Model
                     defectPicture = new()
                     {
                         base64StringPicture = reader.IsDBNull(0) ? "" : reader.GetString(0),
-                        base64StringPictureThumb = reader.IsDBNull(1) ? "" : reader.GetString(1)
+                        base64StringPictureThumb = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                        afterFixing = reader.IsDBNull(2) ? false : reader.GetBoolean(2)
                     };
                     result.Add(defectPicture);
                 }
@@ -252,15 +254,16 @@ namespace playground_check_service.Model
         {
             NpgsqlCommand insertDefectPicCommand = pgConn.CreateCommand();
             insertDefectPicCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel_foto\" " +
-                    "(tid, tid_maengel, picture_base64, picture_base64_thumb)" +
+                    "(tid, tid_maengel, picture_base64, picture_base64_thumb, zeitpunkt)" +
                     "VALUES (" +
                     "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_mangel_foto\"), " +
-                    "@tid_maengel, @picture_base64, @picture_base64_thumb)";
+                    "@tid_maengel, @picture_base64, @picture_base64_thumb, @zeitpunkt)";
 
 
             insertDefectPicCommand.Parameters.AddWithValue("tid_maengel", defectTid);
             insertDefectPicCommand.Parameters.AddWithValue("picture_base64", defectPic.base64StringPicture);
             insertDefectPicCommand.Parameters.AddWithValue("picture_base64_thumb", defectPic.base64StringPictureThumb);
+            insertDefectPicCommand.Parameters.AddWithValue("zeitpunkt", defectPic.afterFixing);
 
             return insertDefectPicCommand;
         }
