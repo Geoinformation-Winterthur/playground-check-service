@@ -92,9 +92,9 @@ namespace playground_check_service.Model
                     }
                 }
 
-                foreach(Defect defect in result)
+                foreach (Defect defect in result)
                     defect.pictures = ReadAllPictures(defect.tid, pgConn);
-                
+
             }
             return result.ToArray();
         }
@@ -114,7 +114,7 @@ namespace playground_check_service.Model
 
                 foreach (DefectPicture defectPic in defect.pictures)
                 {
-                    DbCommand insertDefectPicCommand = CreateCommandForInsertPictures(defectPic,
+                    DbCommand insertDefectPicCommand = CreateCommandForInsertPicture(defectPic,
                             defectNewTid, pgConn);
                     if (!dryRun) insertDefectPicCommand.ExecuteNonQuery();
                 }
@@ -128,11 +128,22 @@ namespace playground_check_service.Model
                 using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
                 {
                     pgConn.Open();
-                    DbCommand insertDefectCommand = this._CreateCommandForUpdate(defect, pgConn,
+                    DbCommand updateDefectCommand = this._CreateCommandForUpdate(defect, pgConn,
                         userFromDb, dryRun);
-                    if (insertDefectCommand != null)
+                    if (updateDefectCommand != null)
                     {
-                        insertDefectCommand.ExecuteNonQuery();
+                        updateDefectCommand.ExecuteNonQuery();
+
+                        foreach (DefectPicture defectPic in defect.pictures)
+                        {
+                            if (defectPic.afterFixing)
+                            {
+                                DbCommand insertDefectPicCommand = CreateCommandForInsertPicture(defectPic,
+                                        defect.tid, pgConn);
+                                if (!dryRun) insertDefectPicCommand.ExecuteNonQuery();
+                            }
+                        }
+
                     }
                 }
             }
@@ -249,7 +260,7 @@ namespace playground_check_service.Model
             return insertDefectCommand;
         }
 
-        private static DbCommand CreateCommandForInsertPictures(DefectPicture defectPic,
+        private static DbCommand CreateCommandForInsertPicture(DefectPicture defectPic,
                         int defectTid, NpgsqlConnection pgConn)
         {
             NpgsqlCommand insertDefectPicCommand = pgConn.CreateCommand();
