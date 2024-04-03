@@ -164,10 +164,20 @@ namespace playground_check_service.Controllers
                     {
                         canBeChecked = false;
                         selectIfCanBeChecked = pgConn.CreateCommand();
-                        selectIfCanBeChecked.CommandText = @"SELECT nicht_zu_pruefen, nicht_pruefbar
+                        if(inspectionReport.playdeviceFid != 0){
+                            selectIfCanBeChecked.CommandText = @"SELECT nicht_zu_pruefen, nicht_pruefbar
                                         FROM ""gr_v_spielgeraete"" 
                                         WHERE fid=@fid";
-                        selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceFid);
+                            selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceFid);
+                        } else {
+                            selectIfCanBeChecked.CommandText = @"SELECT geraet.nicht_zu_pruefen,
+                                            geraet.nicht_pruefbar
+                                        FROM ""wgr_sp_geraetedetail"" detail
+                                        LEFT JOIN ""gr_v_spielgeraete"" geraet
+                                            ON detail.fid_spielgeraet = geraet.fid
+                                        WHERE detail.fid=@fid";
+                            selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceDetailFid);
+                        }
 
                         using (NpgsqlDataReader reader = selectIfCanBeChecked.ExecuteReader())
                         {
