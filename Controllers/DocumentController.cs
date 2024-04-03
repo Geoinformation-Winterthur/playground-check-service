@@ -7,24 +7,32 @@ using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using playground_check_service.Configuration;
 
-namespace playground_check_service.Controllers
+namespace playground_check_service.Controllers;
+
+/// <summary>
+/// This is the controller for document data. Document data is available
+/// at the /document route.
+/// </summary>
+[ApiController]
+[Route("Document/")]
+public class DocumentController : ControllerBase
 {
-    /// <summary>
-    /// This is the controller for document data. Document data is available
-    /// at the /document route.
-    /// </summary>
-    [ApiController]
-    [Route("Document/")]
-    public class DocumentController : ControllerBase
+    private readonly ILogger<DocumentController> _logger;
+
+    public DocumentController(ILogger<DocumentController> logger)
     {
+        _logger = logger;
+    }
 
-        // GET Document/3736373?type=abnahme
-        [Route("/Document/{documentfid}")]
-        [HttpGet]
-        [Authorize]
-        public IActionResult GetDocument(int documentFid, string type)
+
+    // GET Document/3736373?type=abnahme
+    [Route("/Document/{documentfid}")]
+    [HttpGet]
+    [Authorize]
+    public IActionResult GetDocument(int documentFid, string type)
+    {
+        try
         {
-
             if (type == null)
                 return BadRequest();
 
@@ -60,8 +68,12 @@ namespace playground_check_service.Controllers
                 }
             }
 
-            return BadRequest();
         }
-
+        catch (Exception ex)
+        {
+            _logger.LogError(ex.Message);
+        }
+        return BadRequest();
     }
+
 }

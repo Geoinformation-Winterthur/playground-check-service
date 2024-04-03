@@ -48,8 +48,7 @@ public class LoginController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public IActionResult Login([FromBody] User receivedUser, bool dryRun = false)
     {
-        if (receivedUser == null || receivedUser.mailAddress == null || 
-                    receivedUser.mailAddress.Trim().Equals(""))
+        if (receivedUser == null || receivedUser.mailAddress == null)
         {
             // login data is missing something important, thus:
             _logger.LogWarning("No or bad login credentials provided in a login attempt.");
@@ -57,6 +56,14 @@ public class LoginController : ControllerBase
         }
 
         receivedUser.mailAddress = receivedUser.mailAddress.ToLower().Trim();
+
+        if (receivedUser.mailAddress.Equals("") || receivedUser.mailAddress.Any(Char.IsWhiteSpace))
+        {
+            // login data is missing something important, thus:
+            _logger.LogWarning("No or bad login credentials provided in a login attempt.");
+            return BadRequest("No or bad login credentials provided.");
+        }
+
         _logger.LogInformation("User " + receivedUser.mailAddress + " tries to log in.");
 
         if (receivedUser.passPhrase == null || receivedUser.passPhrase.Trim().Equals(""))
