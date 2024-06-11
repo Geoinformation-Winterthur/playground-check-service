@@ -11,6 +11,7 @@ using System.IdentityModel.Tokens.Jwt;
 using Npgsql;
 using playground_check_service.Configuration;
 using playground_check_service.Helper;
+using System.Net.Mail;
 
 namespace playground_check_service.Controllers;
 
@@ -52,7 +53,7 @@ public class LoginController : ControllerBase
         {
             // login data is missing something important, thus:
             _logger.LogWarning("No or bad login credentials provided in a login attempt.");
-            return BadRequest("No or bad login credentials provided.");
+            return BadRequest("Keine oder falsche Login-Daten.");
         }
 
         receivedUser.mailAddress = receivedUser.mailAddress.ToLower().Trim();
@@ -61,7 +62,17 @@ public class LoginController : ControllerBase
         {
             // login data is missing something important, thus:
             _logger.LogWarning("No or bad login credentials provided in a login attempt.");
-            return BadRequest("No or bad login credentials provided.");
+            return BadRequest("Keine oder falsche Login-Daten.");
+        }
+
+        try
+        {
+            MailAddress mailAddress = new MailAddress(receivedUser.mailAddress);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("No or bad login credentials provided in a login attempt.");
+            return BadRequest("Keine oder falsche Login-Daten.");
         }
 
         _logger.LogInformation("User " + receivedUser.mailAddress + " tries to log in.");
@@ -70,18 +81,19 @@ public class LoginController : ControllerBase
         {
             // login data is missing something important, thus:
             _logger.LogWarning("No or bad login credentials provided by user.");
-            return BadRequest("No or bad login credentials provided.");
+            return BadRequest("Keine oder falsche Login-Daten.");
         }
+
+        string hashedPassphrase = HelperFunctions.hashPassphrase(receivedUser.passPhrase);
 
         _logger.LogInformation("User " + receivedUser.mailAddress + " provided a non-empty password. Now trying to authenticate...");
 
         // get corresponding user from database:
         User userFromDb = LoginController._getUserFromDatabase(receivedUser.mailAddress, dryRun);
 
-        LoginController._updateLoginTimestamp(receivedUser.mailAddress, dryRun);
-
         if (userFromDb != null)
         {
+            // if user is already in database:
             _logger.LogInformation("User " + receivedUser.mailAddress + " was found in the database.");
             if (userFromDb.lastLoginAttempt != null)
             {
@@ -89,16 +101,16 @@ public class LoginController : ControllerBase
                 DateTime currentDatabaseTime = (DateTime)userFromDb.databaseTime;
                 DateTime lastLoginAttemptTime = (DateTime)userFromDb.lastLoginAttempt;
                 double diffInSeconds = (currentDatabaseTime - lastLoginAttemptTime).TotalSeconds;
-                if(diffInSeconds < 3)
+                if (diffInSeconds < 3)
                 {
                     Thread.Sleep(3000);
                 }
             }
 
-            string hashedPassphrase = HelperFunctions.hashPassphrase(receivedUser.passPhrase);
+            LoginController._updateLoginTimestamp(receivedUser.mailAddress, dryRun);
 
             if (userFromDb.mailAddress != null && userFromDb.passPhrase != null
-                && userFromDb.passPhrase.Equals(hashedPassphrase))
+                && userFromDb.passPhrase.Equals(hashedPassphrase) && userFromDb.active)
             {
                 string securityKey = AppConfig.Configuration.GetValue<string>("SecurityKey");
                 byte[] securityKeyByteArray = Encoding.UTF8.GetBytes(securityKey);
@@ -109,7 +121,8 @@ public class LoginController : ControllerBase
                 {
                     new Claim(ClaimTypes.Email, userFromDb.mailAddress),
                     new Claim(ClaimTypes.GivenName, userFromDb.firstName),
-                    new Claim(ClaimTypes.Name, userFromDb.lastName)
+                    new Claim(ClaimTypes.Name, userFromDb.lastName),
+                    new Claim(ClaimTypes.Role, userFromDb.role)
                 };
 
                 string serviceDomain = AppConfig.Configuration.GetValue<string>("URL:ServiceDomain");
@@ -130,24 +143,53 @@ public class LoginController : ControllerBase
             }
             else
             {
-                _logger.LogWarning("The provided credentials of user " + receivedUser.mailAddress + 
+                _logger.LogWarning("The provided credentials of user " + receivedUser.mailAddress +
                         " did not match with the credentials in the database.");
+                return Unauthorized("Keine oder falsche Login-Daten.");
             }
         }
         else
         {
+            // if user is not already in database:
             _logger.LogWarning("User " + receivedUser.mailAddress + " could not be found in the database.");
+            _logger.LogWarning("User " + receivedUser.mailAddress + " is not authenticated.");
+
+            try
+            {
+                using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+                {
+                    pgConn.Open();
+                    NpgsqlCommand insertComm = pgConn.CreateCommand();
+                    insertComm.CommandText = @"INSERT INTO ""wgr_sp_kontrolleur""
+                              (nachname, vorname, e_mail, pwd, rolle, aktiv)
+                       VALUES(@nachname, @vorname, @e_mail, @pwd, 'inspector', false)";
+                    insertComm.Parameters.AddWithValue("nachname", receivedUser.lastName);
+                    insertComm.Parameters.AddWithValue("vorname", receivedUser.firstName);
+                    insertComm.Parameters.AddWithValue("e_mail", receivedUser.mailAddress);
+                    insertComm.Parameters.AddWithValue("pwd", hashedPassphrase);
+
+                    insertComm.ExecuteNonQuery();
+
+                    pgConn.Close();
+
+                    return Unauthorized("Sie sind entweder nicht als Kontrolleur in der " +
+                            "Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung." +
+                            "Der Administrator wird informiert und wird Ihnen gegebenenfalls den Zugriff gewähren.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                return BadRequest("Ein kritischer Fehler ist aufgetreten. Bitte kontaktieren Sie den Administrator.");
+            }
         }
-        _logger.LogWarning("User " + receivedUser.mailAddress + " is not authenticated.");
-        return Unauthorized("Sie sind entweder nicht als Kontrolleur in der " +
-            "Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung.");
     }
 
 
-    public static User getAuthorizedUser(ClaimsPrincipal userFromService, bool dryRun)
+    internal static User getAuthorizedUser(ClaimsPrincipal userFromService, bool dryRun)
     {
-        if(dryRun) return null;
-        
+        if (dryRun) return null;
+
         Claim userMailAddressClaim = null;
         foreach (Claim userClaim in userFromService.Claims)
         {
@@ -171,7 +213,7 @@ public class LoginController : ControllerBase
 
     private static User _getUserFromDatabase(string eMailAddress, bool dryRun)
     {
-        if(dryRun) return null;
+        if (dryRun) return null;
 
         User userFromDb = null;
         // get data of current user from database:
@@ -180,7 +222,8 @@ public class LoginController : ControllerBase
             pgConn.Open();
             NpgsqlCommand selectComm = pgConn.CreateCommand();
             selectComm.CommandText = "SELECT fid, nachname, vorname, e_mail, pwd, " +
-                        "letzter_anmeldeversuch, CURRENT_TIMESTAMP(0)::TIMESTAMP " +
+                        "letzter_anmeldeversuch, CURRENT_TIMESTAMP(0)::TIMESTAMP, " +
+                        "rolle, aktiv " +
                         "FROM \"wgr_sp_kontrolleur\" WHERE trim(lower(e_mail))=@e_mail";
             selectComm.Parameters.AddWithValue("e_mail", eMailAddress);
 
@@ -190,7 +233,7 @@ public class LoginController : ControllerBase
                 if (hasUser)
                 {
                     userFromDb = new User();
-                    userFromDb.fid = reader.GetInt32(0);
+                    userFromDb.fid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0);
                     userFromDb.mailAddress = reader.GetString(3);
                     userFromDb.passPhrase = reader.GetString(4);
 
@@ -198,6 +241,8 @@ public class LoginController : ControllerBase
                     userFromDb.firstName = reader.GetString(2);
                     userFromDb.lastLoginAttempt = !reader.IsDBNull(5) ? reader.GetDateTime(5) : null;
                     userFromDb.databaseTime = !reader.IsDBNull(6) ? reader.GetDateTime(6) : null;
+                    userFromDb.role = !reader.IsDBNull(7) ? reader.GetString(7) : "";
+                    userFromDb.active = !reader.IsDBNull(8) ? reader.GetBoolean(8) : false;
 
                     if (userFromDb.lastName == null || userFromDb.lastName.Trim().Equals(""))
                     {
@@ -219,7 +264,7 @@ public class LoginController : ControllerBase
 
     private static void _updateLoginTimestamp(string eMailAddress, bool dryRun)
     {
-        if(dryRun) return;
+        if (dryRun) return;
 
         using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
         {
