@@ -65,21 +65,13 @@ public class UsersController : ControllerBase
                                     reader.GetString(2).ToLower().Trim();
                     if (userFromDb.mailAddress != null && userFromDb.mailAddress != "")
                     {
-                        userFromDb.lastName = reader.GetString(0);
-                        userFromDb.firstName = reader.GetString(1);
+                        userFromDb.lastName = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                        userFromDb.lastName = userFromDb.lastName.Trim();
+                        userFromDb.firstName = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                        userFromDb.firstName = userFromDb.firstName.Trim();
 
-                        if (userFromDb.lastName == null || userFromDb.lastName.Trim().Equals(""))
-                        {
-                            userFromDb.lastName = "unbekannt";
-                        }
-
-                        if (userFromDb.firstName == null || userFromDb.firstName.Trim().Equals(""))
-                        {
-                            userFromDb.firstName = "unbekannt";
-                        }
-
-                        userFromDb.active = reader.GetBoolean(3);
-                        userFromDb.role = reader.GetString(4);
+                        userFromDb.active = reader.IsDBNull(3) ? false : reader.GetBoolean(3);
+                        userFromDb.role = reader.IsDBNull(4) ? "" : reader.GetString(4);
 
                         usersFromDb.Add(userFromDb);
                     }
