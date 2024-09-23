@@ -27,8 +27,8 @@ namespace playground_check_service.Model
                     while (reader.Read())
                     {
                         NpgsqlDate inspectionDate = reader.GetDate(0);
-                        string inspectionDateString = inspectionDate.Day + "." +
-                                inspectionDate.Month + "." + inspectionDate.Year;
+                        string inspectionDateString = inspectionDate.Year + "-"
+                                + inspectionDate.Month + "-" + inspectionDate.Day;
                         result.Add(inspectionDateString);
                     }
                 }
