@@ -39,7 +39,7 @@ public class UsersController : ControllerBase
             pgConn.Open();
             NpgsqlCommand selectComm = pgConn.CreateCommand();
             selectComm.CommandText = @"SELECT nachname, vorname,
-                                    trim(lower(e_mail)), aktiv, rolle
+                                    trim(lower(e_mail)), aktiv, rolle, is_new
                                 FROM ""wgr_sp_kontrolleur""";
 
             if (email != null)
@@ -72,6 +72,7 @@ public class UsersController : ControllerBase
 
                         userFromDb.active = reader.IsDBNull(3) ? false : reader.GetBoolean(3);
                         userFromDb.role = reader.IsDBNull(4) ? "" : reader.GetString(4);
+                        userFromDb.isNew = reader.IsDBNull(5) ? false : reader.GetBoolean(5);
 
                         usersFromDb.Add(userFromDb);
                     }
@@ -171,7 +172,7 @@ public class UsersController : ControllerBase
                 NpgsqlCommand updateComm = pgConn.CreateCommand();
                 updateComm.CommandText = @"UPDATE ""wgr_sp_kontrolleur""
                             SET nachname=@last_name, vorname=@first_name,
-                            rolle=@role, aktiv=@active
+                            rolle=@role, aktiv=@active, is_new=@is_new
                             WHERE e_mail=@e_mail";
 
                 updateComm.Parameters.AddWithValue("last_name", user.lastName);
@@ -179,6 +180,7 @@ public class UsersController : ControllerBase
                 updateComm.Parameters.AddWithValue("role", user.role);
                 updateComm.Parameters.AddWithValue("active", user.active);
                 updateComm.Parameters.AddWithValue("e_mail", user.mailAddress);
+                updateComm.Parameters.AddWithValue("is_new", user.isNew);
 
                 int noAffectedRowsStep1 = updateComm.ExecuteNonQuery();
 

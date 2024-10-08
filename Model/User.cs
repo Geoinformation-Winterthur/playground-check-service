@@ -16,5 +16,6 @@ namespace playground_check_service.Model
         public DateTime? databaseTime { get; set; }
         public string role { get; set; } = "";
         public string errorMessage { get; set; } = "";
+        public bool isNew { get; set; } = false;
     }
 }

@@ -161,8 +161,8 @@ public class LoginController : ControllerBase
                     pgConn.Open();
                     NpgsqlCommand insertComm = pgConn.CreateCommand();
                     insertComm.CommandText = @"INSERT INTO ""wgr_sp_kontrolleur""
-                              (nachname, vorname, e_mail, pwd, rolle, aktiv)
-                       VALUES(@nachname, @vorname, @e_mail, @pwd, 'inspector', false)";
+                              (nachname, vorname, e_mail, pwd, rolle, aktiv, is_new)
+                       VALUES(@nachname, @vorname, @e_mail, @pwd, 'inspector', false, true)";
                     insertComm.Parameters.AddWithValue("nachname", receivedUser.lastName);
                     insertComm.Parameters.AddWithValue("vorname", receivedUser.firstName);
                     insertComm.Parameters.AddWithValue("e_mail", receivedUser.mailAddress);
