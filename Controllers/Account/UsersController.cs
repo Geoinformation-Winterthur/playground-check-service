@@ -190,7 +190,7 @@ public class UsersController : ControllerBase
                     if (userPassphrase.Length < 8)
                     {
                         _logger.LogWarning("Not enough user data provided in update user process.");
-                        errorResult.errorMessage = "SPK-3";
+                        errorResult.errorMessage = "SPK-9";
                         return Ok(errorResult);
                     }
                 }
