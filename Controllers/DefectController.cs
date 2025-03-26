@@ -65,12 +65,43 @@ namespace playground_check_service.Controllers
             return Ok(result);
         }
 
+        // PUT defect/?inspectiontid=...
+        [HttpPut]
+        [Authorize]
+        public ActionResult<ErrorMessage> Put([FromBody] Defect[] defects, bool dryRun = false)
+        {
+            ErrorMessage result = new ErrorMessage();
+            User userFromDb = LoginController.getAuthorizedUser(this.User, dryRun);
+            if (userFromDb == null || userFromDb.fid == 0)
+            {
+                return Unauthorized("Sie sind entweder nicht als Kontrolleur in der " +
+                    "Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung.");
+            }
 
-        internal static void WriteAllDefects(Defect[] defects, int inspectionTid,
+            if (defects != null)
+            {
+                try
+                {
+                    DefectController.WriteAllDefects(defects, null, userFromDb, dryRun);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.Message);
+                    result.errorMessage = "SPK-3";
+                }
+            }
+            else
+            {
+                result.errorMessage = "SPK-4";
+            }
+            return Ok(result);
+        }
+
+
+        internal static void WriteAllDefects(Defect[] defects, int? inspectionTid,
                      User userFromDb, bool dryRun)
         {
-            if (defects != null && inspectionTid > 0 && userFromDb != null
-                    && userFromDb.fid != 0)
+            if (defects != null && userFromDb != null && userFromDb.fid != 0)
             {
                 DefectDAO defectDao = new();
                 Dictionary<string, int> defectPriorityNames = defectDao.GetDefectPriorityIds();

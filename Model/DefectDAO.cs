@@ -99,7 +99,7 @@ namespace playground_check_service.Model
             return result.ToArray();
         }
 
-        internal static void Insert(Defect defect, int idPriority, int inspectionTid,
+        internal static void Insert(Defect defect, int idPriority, int? inspectionTid,
                     User userFromDb, bool dryRun)
         {
             if (idPriority != -1)
@@ -227,7 +227,7 @@ namespace playground_check_service.Model
         }
 
         private static DbCommand CreateCommandForInsert(Defect defect, int idPriority,
-                    int inspectionTid, NpgsqlConnection pgConn, User userFromDb)
+                    int? inspectionTid, NpgsqlConnection pgConn, User userFromDb)
         {
             NpgsqlCommand insertDefectCommand = pgConn.CreateCommand();
             insertDefectCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel\" " +
@@ -238,7 +238,7 @@ namespace playground_check_service.Model
                     "@fid_spielgeraet, @tid_inspektion, @dringlichkeit, @beschrieb, " +
                     "@bemerkung, @datum_erledigung, @fid_erledigung, @id_zustaendig_behebung) RETURNING tid";
 
-            insertDefectCommand.Parameters.AddWithValue("tid_inspektion", inspectionTid);
+            insertDefectCommand.Parameters.AddWithValue("tid_inspektion", inspectionTid != null ? inspectionTid : DBNull.Value);
             insertDefectCommand.Parameters.AddWithValue("fid_spielgeraet", defect.playdeviceFid);
             insertDefectCommand.Parameters.AddWithValue("dringlichkeit", idPriority);
             insertDefectCommand.Parameters.AddWithValue("beschrieb", defect.defectDescription ?? "");
