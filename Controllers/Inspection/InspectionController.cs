@@ -2,6 +2,7 @@
 //      Author: Edgar Butwilowski
 //      Copyright (c) Vermessungsamt Winterthur. All rights reserved.
 // </copyright>
+using System.Transactions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
@@ -34,7 +35,7 @@ namespace playground_check_service.Controllers
         // POST inspection/
         [HttpPost]
         [Authorize]
-        public ActionResult<ErrorMessage> Post([FromBody] InspectionReportsAndDefects inspectionReportsAndDefects,
+        public ActionResult<ErrorMessage> Post([FromBody] InspectionReport[] inspectionReports,
                         bool dryRun = false)
         {
             ErrorMessage result = new ErrorMessage();
@@ -47,19 +48,17 @@ namespace playground_check_service.Controllers
                 // Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung.
             }
 
-            if (inspectionReportsAndDefects == null || 
-                    inspectionReportsAndDefects.inspectionReports == null ||
-                        inspectionReportsAndDefects.inspectionReports.Length == 0)
+            if (inspectionReports == null || inspectionReports.Length == 0)
             {
                 result.errorMessage = "SPK-0";
                 return Ok(result);  // Es wurden keine Kontrollberichte empfangen.
             }
 
-            string inspectionType = inspectionReportsAndDefects.inspectionReports[0].inspectionType;
+            string inspectionType = inspectionReports[0].inspectionType;
 
             Dictionary<int, DateTime> playdeviceDates = new Dictionary<int, DateTime>();
             Dictionary<int, DateTime> playdeviceDetailDates = new Dictionary<int, DateTime>();
-            foreach (InspectionReport inspectionReport in inspectionReportsAndDefects.inspectionReports)
+            foreach (InspectionReport inspectionReport in inspectionReports)
             {
                 if (inspectionReport.inspectionType != inspectionType)
                 {
@@ -92,75 +91,18 @@ namespace playground_check_service.Controllers
                 pgConn.Open();
                 try
                 {
-                    NpgsqlCommand beginTrans = pgConn.CreateCommand();
-                    beginTrans.CommandText = "BEGIN TRANSACTION";
-                    beginTrans.ExecuteNonQuery();
-
-                    NpgsqlCommand lockTable = pgConn.CreateCommand();
-                    lockTable.CommandText = "LOCK TABLE \"wgr_sp_insp_bericht\" IN ACCESS EXCLUSIVE MODE";
-                    lockTable.ExecuteNonQuery();
-
-                    bool hasExistingInspections = false;
-                    NpgsqlCommand selectIfExisting;
-                    foreach (KeyValuePair<int, DateTime> playdeviceDate in playdeviceDates)
-                    {
-                        selectIfExisting = pgConn.CreateCommand();
-                        selectIfExisting.CommandText = @"SELECT count(*) FROM ""wgr_sp_insp_bericht"" 
-                                    WHERE fid_spielgeraet=@fid_spielgeraet 
-                                    AND inspektionsart = @inspektionsart 
-                                    AND datum_inspektion = @datum_inspektion";
-                        selectIfExisting.Parameters.AddWithValue("fid_spielgeraet", playdeviceDate.Key);
-                        NpgsqlDate dateOfService = (NpgsqlDate)playdeviceDate.Value;
-                        selectIfExisting.Parameters.AddWithValue("inspektionsart", inspectionType);
-                        selectIfExisting.Parameters.AddWithValue("datum_inspektion", dateOfService);
-
-                        using (NpgsqlDataReader reader = selectIfExisting.ExecuteReader())
-                        {
-                            reader.Read();
-                            hasExistingInspections = hasExistingInspections || reader.GetInt32(0) != 0;
-                        }
-                    }
-
-                    if (!hasExistingInspections)
-                    {
-                        foreach (KeyValuePair<int, DateTime> playdeviceDetailDate in playdeviceDetailDates)
-                        {
-                            selectIfExisting = pgConn.CreateCommand();
-                            selectIfExisting.CommandText = @"SELECT count(*) FROM ""wgr_sp_insp_bericht"" 
-                                        WHERE fid_geraet_detail=@fid_geraet_detail 
-                                        AND inspektionsart = @inspektionsart 
-                                        AND datum_inspektion = @datum_inspektion";
-                            selectIfExisting.Parameters.AddWithValue("fid_geraet_detail", playdeviceDetailDate.Key);
-                            NpgsqlDate dateOfService = (NpgsqlDate)playdeviceDetailDate.Value;
-                            selectIfExisting.Parameters.AddWithValue("inspektionsart", inspectionType);
-                            selectIfExisting.Parameters.AddWithValue("datum_inspektion", dateOfService);
-
-                            using (NpgsqlDataReader reader = selectIfExisting.ExecuteReader())
-                            {
-                                reader.Read();
-                                hasExistingInspections = hasExistingInspections || reader.GetInt32(0) != 0;
-                            }
-                        }
-                    }
-
-
-                    if (hasExistingInspections)
-                    {
-                        result.errorMessage = "SPK-2";
-                        return Ok(result);
-                        // Für diesen Spielplatz ist am selben Tag bereits ein Bericht mit derselben Inspektionsart eingereicht worden.
-                    }
+                    using NpgsqlTransaction trans = pgConn.BeginTransaction();
 
                     int inspectionTid = -1;
 
                     inspectionTid = InspectionController.writeInspection(
-                                        inspectionReportsAndDefects.inspectionReports[0],
+                                        inspectionReports[0],
                                         userFromDb, pgConn, dryRun);
 
 
                     NpgsqlCommand selectIfCanBeChecked;
                     bool canBeChecked;
-                    foreach (InspectionReport inspectionReport in inspectionReportsAndDefects.inspectionReports)
+                    foreach (InspectionReport inspectionReport in inspectionReports)
                     {
                         canBeChecked = false;
                         selectIfCanBeChecked = pgConn.CreateCommand();
@@ -194,22 +136,10 @@ namespace playground_check_service.Controllers
                         }
 
                     }
-
-                    DefectController.WriteAllDefects(inspectionReportsAndDefects.defects,
-                                inspectionTid, userFromDb, dryRun);
-
-                    NpgsqlCommand commitTrans = pgConn.CreateCommand();
-                    commitTrans.CommandText = "COMMIT TRANSACTION";
-                    commitTrans.ExecuteNonQuery();
-
                     return Ok(result);
                 }
                 catch (Exception ex)
                 {
-                    NpgsqlCommand rollbackTrans = pgConn.CreateCommand();
-                    rollbackTrans.CommandText = "ROLLBACK TRANSACTION";
-                    rollbackTrans.ExecuteNonQuery();
-
                     _logger.LogError(ex.Message);
 
                     result.errorMessage = "SPK-3";

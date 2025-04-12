@@ -1,13 +1,10 @@
-// <copyright company="Vermessungsamt Winterthur">
+// <copyright company="Geoinformation Winterthur">
 //      Author: Edgar Butwilowski
-//      Copyright (c) Vermessungsamt Winterthur. All rights reserved.
+//      Copyright (c) Geoinformation Winterthur. All rights reserved.
 // </copyright>
-using System.Text;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using playground_check_service.Configuration;
-using playground_check_service.Model;
 
 namespace playground_check_service.Controllers
 {
@@ -19,37 +16,43 @@ namespace playground_check_service.Controllers
     /// This class provides the possibility to store playdevices data in the database.
     /// </remarks>
     [ApiController]
-    [Route("Playdevice/")]
-    public class PlaydevicePictureController : ControllerBase
+    [Route("Defect/")]
+    public class DefectPictureController : ControllerBase
     {
 
-
-        // GET Playdevice/3736373/Picture
+        // GET Defect/Picture/3736373?thumb=true
         [HttpGet]
-        [Route("/Playdevice/{playdeviceFid}/Picture")]
-        public IActionResult GetPicture(int playdeviceFid, bool dryRun = false)
+        [Route("/Defect/Picture/{tid}")]
+        public IActionResult GetPicture(int tid, bool thumb, bool dryrun = false)
         {
             try
             {
-                if (dryRun) return Ok();
-
                 byte[]? pictureData = null;
                 string mimeType = "image/png"; // Fallback-MIME-Typ
 
                 using var pgConn = new NpgsqlConnection(AppConfig.connectionString);
                 pgConn.Open();
 
-                using var cmd = pgConn.CreateCommand();
-                cmd.CommandText = "SELECT picture_base64 FROM \"gr_v_spielgeraete\" WHERE fid=@fid";
-                cmd.Parameters.AddWithValue("fid", playdeviceFid);
 
-                using var reader = cmd.ExecuteReader();
-                if (reader.Read())
+
+                NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
+                string pictureAttribute = "";
+                if (thumb)
+                    pictureAttribute = "picture_base64_thumb";
+                else
+                    pictureAttribute = "picture_base64";
+
+                selectDefectsCommand.CommandText = @$"SELECT {pictureAttribute}
+                                FROM ""wgr_sp_insp_mangel_foto""
+                                WHERE tid={tid}";
+
+                if (dryrun) return Ok();
+
+                using (NpgsqlDataReader reader = selectDefectsCommand.ExecuteReader())
                 {
-                    if (!reader.IsDBNull(0))
+                    if (reader.Read())
                     {
-                        var base64Bytes = reader.GetFieldValue<byte[]>(0);
-                        var base64String = Encoding.UTF8.GetString(base64Bytes);
+                        string base64String = reader.IsDBNull(0) ? "" : reader.GetString(0);
 
                         // Prüfe auf data:image/...-Prefix
                         if (base64String.StartsWith("data:"))
@@ -75,15 +78,18 @@ namespace playground_check_service.Controllers
                             // Falls kein Prefix: Direkt dekodieren
                             pictureData = Convert.FromBase64String(base64String);
                         }
+
+                        if (pictureData == null || pictureData.Length == 0)
+                        {
+                            return NotFound("Kein Bild vorhanden.");
+                        }
+
+
+                        return File(pictureData, mimeType);
                     }
                 }
+                
 
-                if (pictureData == null || pictureData.Length == 0)
-                {
-                    return NotFound("Kein Bild vorhanden.");
-                }
-
-                return File(pictureData, mimeType);
             }
             catch (FormatException ex)
             {
@@ -93,28 +99,7 @@ namespace playground_check_service.Controllers
             {
                 return StatusCode(500, $"Fehler beim Laden des Bildes: {ex.Message}");
             }
-        }
-
-        // PUT Playdevice/3736373/Picture
-        [Route("/Playdevice/{playdevicefid}/Picture")]
-        [HttpPut]
-        [Authorize]
-        public IActionResult PutPicture(int playdeviceFid, [FromBody] Image pictureBase64, bool dryRun = false)
-        {
-            if (dryRun) return Ok();
-
-            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
-            {
-                pgConn.Open();
-                NpgsqlCommand updatePictureCommand = pgConn.CreateCommand();
-                updatePictureCommand.CommandText = "UPDATE \"gr_v_spielgeraete\" " +
-                        "SET picture_base64=@picture_base64 " +
-                        "WHERE fid=@fid";
-                updatePictureCommand.Parameters.AddWithValue("fid", playdeviceFid);
-                updatePictureCommand.Parameters.AddWithValue("picture_base64", pictureBase64.Data);
-                updatePictureCommand.ExecuteNonQuery();
-            }
-            return Ok();
+            return StatusCode(500, $"Unbekannter Fehler beim Laden des Bildes.");
         }
 
     }
