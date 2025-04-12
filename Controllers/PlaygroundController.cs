@@ -403,6 +403,7 @@ namespace playground_check_service.Controllers
 
                         this.readReportsOfPlaydevices(currentPlayground.playdevices, inspectionTypes);
                     }
+                    readDefectsOfPlaydevices(currentPlayground.playdevices);
                 }
 
             }
@@ -482,6 +483,18 @@ namespace playground_check_service.Controllers
             return result;
         }
 
+        private void readDefectsOfPlaydevices(PlaydeviceFeature[] playdevices)
+        {
+            using NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString);
+            pgConn.Open();
+            foreach (PlaydeviceFeature playdevice in playdevices)
+            {
+                DefectDAO defectDao = new();
+                playdevice.properties.defects = defectDao.ReadAllOfPlaydevice(playdevice.properties.fid);
+            }
+        }
+
+
         private void readReportsOfPlaydevices(PlaydeviceFeature[] playdevices, string[] inspectionTypes)
         {
             using NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString);
@@ -535,9 +548,6 @@ namespace playground_check_service.Controllers
                 }
                 playdevice.properties.lastInspectionReports = lastInspectionReports.ToArray();
                 playdevice.properties.nextToLastInspectionReports = nextToLastInspectionReports.ToArray();
-
-                DefectDAO defectDao = new();
-                playdevice.properties.defects = defectDao.Read(playdevice.properties.fid);
             }
         }
 

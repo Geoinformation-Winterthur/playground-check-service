@@ -70,14 +70,36 @@ namespace playground_check_service.Model
             return result;
         }
 
-        internal Defect[] Read(int playdeviceFid)
+        internal Defect Read(int tid)
+        {
+            Defect result = null;
+
+            using (NpgsqlConnection pgConn = new(AppConfig.connectionString))
+            {
+                pgConn.Open();
+                NpgsqlCommand selectDefectsComm = this._CreateCommandForSelect(tid, pgConn);
+
+                using (NpgsqlDataReader reader = selectDefectsComm.ExecuteReader())
+                {
+                    if (reader.Read()) result = _ReadDefect(reader);
+                }
+                if (result != null)
+                {
+                    result.defectPicsTids = _ReadAllPictureTids(result.tid, false, pgConn);
+                    result.defectPicsAfterFixingTids = _ReadAllPictureTids(result.tid, true, pgConn);
+                }
+            }
+            return result;
+        }
+
+        internal Defect[] ReadAllOfPlaydevice(int playdeviceFid)
         {
             List<Defect> result = new();
 
             using (NpgsqlConnection pgConn = new(AppConfig.connectionString))
             {
                 pgConn.Open();
-                NpgsqlCommand selectDefectsComm = this._CreateCommandForSelect(
+                NpgsqlCommand selectDefectsComm = this._CreateCommandForSelectByPlaydevice(
                             playdeviceFid, pgConn);
 
                 using (NpgsqlDataReader reader = selectDefectsComm.ExecuteReader())
@@ -91,10 +113,6 @@ namespace playground_check_service.Model
                         }
                     }
                 }
-
-                foreach (Defect defect in result)
-                    defect.pictures = ReadAllPictures(defect.tid, pgConn);
-
             }
             return result.ToArray();
         }
@@ -111,19 +129,12 @@ namespace playground_check_service.Model
                                 inspectionTid, pgConn, userFromDb);
                 int defectNewTid = -1;
                 if (!dryRun) defectNewTid = (int)insertDefectCommand.ExecuteScalar();
-
-                foreach (DefectPicture defectPic in defect.pictures)
-                {
-                    DbCommand insertDefectPicCommand = CreateCommandForInsertPicture(defectPic,
-                            defectNewTid, pgConn);
-                    if (!dryRun) insertDefectPicCommand.ExecuteNonQuery();
-                }
             }
         }
 
         internal void Update(Defect defect, User userFromDb, bool dryRun)
         {
-            if (defect != null && defect.dateDone != null)
+            if (defect != null)
             {
                 using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
                 {
@@ -133,20 +144,21 @@ namespace playground_check_service.Model
                     if (updateDefectCommand != null)
                     {
                         updateDefectCommand.ExecuteNonQuery();
-
-                        foreach (DefectPicture defectPic in defect.pictures)
-                        {
-                            if (defectPic.afterFixing)
-                            {
-                                DbCommand insertDefectPicCommand = CreateCommandForInsertPicture(defectPic,
-                                        defect.tid, pgConn);
-                                if (!dryRun) insertDefectPicCommand.ExecuteNonQuery();
-                            }
-                        }
-
                     }
                 }
             }
+        }
+
+        private NpgsqlCommand _CreateCommandForSelectByPlaydevice(int playdeviceFid, NpgsqlConnection pgConn)
+        {
+            NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
+            selectDefectsCommand.CommandText = "SELECT tid, id_dringlichkeit, beschrieb, " +
+                    "datum_erledigung, fid_erledigung, bemerkunng, datum, " +
+                    "id_zustaendig_behebung " +
+                    "FROM \"wgr_sp_insp_mangel\" " +
+                    "WHERE fid_spielgeraet=" + playdeviceFid +
+                    " AND datum_erledigung IS NULL";
+            return selectDefectsCommand;
         }
 
         private NpgsqlCommand _CreateCommandForSelectDefectPriorityIds(NpgsqlConnection pgConn)
@@ -157,17 +169,15 @@ namespace playground_check_service.Model
             return selectDefectPriorityIds;
         }
 
-        private NpgsqlCommand _CreateCommandForSelect(int playdeviceFid, NpgsqlConnection pgConn)
+        private NpgsqlCommand _CreateCommandForSelect(int tid, NpgsqlConnection pgConn)
         {
-            NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
-            selectDefectsCommand.CommandText = "SELECT m.tid, d.short_value, d.value, m.beschrieb, " +
-                    "m.datum_erledigung, m.fid_erledigung, m.bemerkunng, m.datum, " +
-                    "m.id_zustaendig_behebung " +
-                    "FROM \"wgr_sp_insp_mangel\" m " +
-                    "LEFT JOIN \"wgr_sp_dringlichkeit_tbd\" d ON m.id_dringlichkeit = d.id " +
-                    "WHERE m.fid_spielgeraet=" + playdeviceFid +
-                    " AND m.datum_erledigung IS NULL";
-            return selectDefectsCommand;
+            NpgsqlCommand selectDefectCommand = pgConn.CreateCommand();
+            selectDefectCommand.CommandText = "SELECT tid, id_dringlichkeit, beschrieb, " +
+                    "datum_erledigung, fid_erledigung, bemerkunng, datum, " +
+                    "id_zustaendig_behebung " +
+                    "FROM \"wgr_sp_insp_mangel\" " +
+                    "WHERE tid=" + tid;
+            return selectDefectCommand;
         }
 
         private Defect _ReadDefect(NpgsqlDataReader reader)
@@ -176,24 +186,29 @@ namespace playground_check_service.Model
             {
                 tid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0)
             };
-            string shortValue = reader.IsDBNull(1) ? "Unbekannt" : reader.GetString(1);
-            string longValue = reader.IsDBNull(2) ? "Unbekannt" : reader.GetString(2);
-            defect.priority = DefectDAO._ConcatPriorityOfDefect(shortValue, longValue);
-            defect.defectDescription = reader.IsDBNull(3) ? "Keine Beschreibung" : reader.GetString(3);
-            if (!reader.IsDBNull(4))
+            int priorityOrdinal = reader.GetOrdinal("id_dringlichkeit");
+            defect.priority = reader.IsDBNull(priorityOrdinal) ? -1 : reader.GetInt32(priorityOrdinal);
+            int defectDescriptionOrdinal = reader.GetOrdinal("beschrieb");
+            defect.defectDescription = reader.IsDBNull(defectDescriptionOrdinal) ? "" :
+                        reader.GetString(defectDescriptionOrdinal);
+            int dateDoneOrdinal = reader.GetOrdinal("datum_erledigung");
+            if (!reader.IsDBNull(dateDoneOrdinal))
             {
-                NpgsqlDate dateDone = reader.GetDate(4);
+                NpgsqlDate dateDone = reader.GetDate(dateDoneOrdinal);
                 defect.dateDone = (DateTime)dateDone;
             }
-            defect.defectComment = reader.IsDBNull(6) ? "Kein Kommentar" : reader.GetString(6);
-            if (!reader.IsDBNull(7))
+            int defectCommentOrdinal = reader.GetOrdinal("bemerkunng");
+            defect.defectComment = reader.IsDBNull(defectCommentOrdinal) ? "" : reader.GetString(defectCommentOrdinal);
+            int dateCreationOrdinal = reader.GetOrdinal("datum");
+            if (!reader.IsDBNull(dateCreationOrdinal))
             {
-                NpgsqlDate dateCreation = reader.GetDate(7);
+                NpgsqlDate dateCreation = reader.GetDate(dateCreationOrdinal);
                 defect.dateCreation = (DateTime)dateCreation;
             }
-            if (!reader.IsDBNull(8))
+            int defectsResponsibleBodyIdOrdinal = reader.GetOrdinal("id_zustaendig_behebung");
+            if (!reader.IsDBNull(defectsResponsibleBodyIdOrdinal))
             {
-                defect.defectsResponsibleBodyId = reader.GetInt32(8);
+                defect.defectsResponsibleBodyId = reader.GetInt32(defectsResponsibleBodyIdOrdinal);
             }
             return defect;
         }
@@ -277,6 +292,26 @@ namespace playground_check_service.Model
             insertDefectPicCommand.Parameters.AddWithValue("zeitpunkt", defectPic.afterFixing);
 
             return insertDefectPicCommand;
+        }
+
+        private static int[] _ReadAllPictureTids(int defectTid, bool isFixed, NpgsqlConnection pgConn)
+        {
+            List<int> result = new();
+
+            NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
+            selectDefectsCommand.CommandText = @$"SELECT tid
+                                FROM ""wgr_sp_insp_mangel_foto""
+                                WHERE tid_maengel={defectTid} AND zeitpunkt={isFixed}";
+
+            using (NpgsqlDataReader reader = selectDefectsCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    int tid = reader.IsDBNull(0) ? 0 : reader.GetInt32(0);
+                    result.Add(tid);
+                }
+            }
+            return result.ToArray();
         }
 
         private DbCommand _CreateCommandForUpdate(Defect defect, NpgsqlConnection pgConn,
