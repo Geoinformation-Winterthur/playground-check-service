@@ -162,18 +162,18 @@ namespace playground_check_service.Controllers
         [Route("/Playground/{id}")]
         [HttpGet]
         [Authorize]
-        public Playground GetById(int id, string inspectionType)
+        public Playground GetById(int id, string inspectionType, bool minimal)
         {
-            return this.readPlaygroundFromDb(id, null, inspectionType);
+            return this.readPlaygroundFromDb(id, null, inspectionType, minimal);
         }
 
         // GET Playground/byname?name=...&inspectiontype=Hauptinspektion (HI)
         [Route("/Playground/byname")]
         [HttpGet]
         [Authorize]
-        public Playground GetByName(string name, string inspectionType)
+        public Playground GetByName(string name, string inspectionType, bool minimal)
         {
-            return this.readPlaygroundFromDb(-1, name, inspectionType);
+            return this.readPlaygroundFromDb(-1, name, inspectionType, minimal);
         }
 
         // GET playground/onlynames?inspectiontype=Hauptinspektion (HI)
@@ -329,7 +329,8 @@ namespace playground_check_service.Controllers
 
         }
 
-        private Playground readPlaygroundFromDb(int id, string name, string inspectionType)
+        private Playground readPlaygroundFromDb(int id, string name,
+                string inspectionType, bool minimal)
         {
             Playground currentPlayground = null;
 
@@ -395,17 +396,13 @@ namespace playground_check_service.Controllers
                 {
                     this.readDetailsOfPlaydevices(currentPlayground.playdevices, inspectionType);
 
-                    this.readInspectionCriteriaOfPlaydevices(currentPlayground.playdevices, inspectionType);
-
-                    string[] inspectionTypes = InspectionTypesController._GetTypes();
-
-                    this.readReportsOfPlaydevices(currentPlayground.playdevices, inspectionTypes);
-
-                    foreach (PlaydeviceFeature playdevice in currentPlayground.playdevices)
+                    if (!minimal)
                     {
-                        this.readReportsOfPlaydeviceDetail(playdevice.playdeviceDetails, inspectionTypes);
-                    }
+                        this.readInspectionCriteriaOfPlaydevices(currentPlayground.playdevices, inspectionType);
+                        string[] inspectionTypes = InspectionTypesController._GetTypes();
 
+                        this.readReportsOfPlaydevices(currentPlayground.playdevices, inspectionTypes);
+                    }
                 }
 
             }
@@ -424,7 +421,7 @@ namespace playground_check_service.Controllers
                 selectComm.CommandText = "SELECT spg.fid, spg.bemerkungen, spg.geom, " +
                         "gart.short_value, gart.value, spg.norm, lief.name, " +
                         "spg.empfohlenes_sanierungsjahr, spg.bemerkung_empf_sanierung, " +
-                        "spg.picture_base64, spg.nicht_zu_pruefen, spg.bau_dat, " +
+                        "spg.nicht_zu_pruefen, spg.bau_dat, " +
                         "spg.id_sanierungsart " +
                         "FROM \"gr_v_spielgeraete\" spg " +
                         "LEFT JOIN \"wgr_sp_spielgeraeteart_tbd\" gart ON spg.id_geraeteart = gart.id " +
@@ -459,29 +456,17 @@ namespace playground_check_service.Controllers
                         if (!reader.IsDBNull(7)) currentPlaydevice.properties.recommendedYearOfRenovation = reader.GetInt32(7);
                         currentPlaydevice.properties.commentRecommendedYearOfRenovation = reader.IsDBNull(8) ? "" : reader.GetString(8);
 
-                        byte[] pictureBase64Bytes = reader.IsDBNull(9) ? new byte[0] : (byte[])reader[9];
-                        if (pictureBase64Bytes.Length != 0)
-                        {
-                            currentPlaydevice.properties.pictureBase64String = Encoding.UTF8
-                                                .GetString(pictureBase64Bytes, 0, pictureBase64Bytes.Length);
-                        }
-                        else
-                        {
-                            currentPlaydevice.properties.pictureBase64String = "";
-                        }
+                        currentPlaydevice.properties.notToBeChecked = reader.IsDBNull(9) ? false : reader.GetBoolean(9);
 
-
-                        currentPlaydevice.properties.notToBeChecked = reader.IsDBNull(10) ? false : reader.GetBoolean(10);
-
-                        if (!reader.IsDBNull(11))
+                        if (!reader.IsDBNull(10))
                         {
-                            NpgsqlDate constructionDate = reader.GetDate(11);
+                            NpgsqlDate constructionDate = reader.GetDate(10);
                             currentPlaydevice.properties.constructionDate = (DateTime)constructionDate;
                         }
 
-                        if (!reader.IsDBNull(12))
+                        if (!reader.IsDBNull(11))
                         {
-                            int idRenovationType = reader.GetInt32(12);
+                            int idRenovationType = reader.GetInt32(11);
                             if (idRenovationType == 1)
                                 currentPlaydevice.properties.renovationType = "Totalsanierung";
                             else if (idRenovationType == 2)
