@@ -162,18 +162,18 @@ namespace playground_check_service.Controllers
         [Route("/Playground/{id}")]
         [HttpGet]
         [Authorize]
-        public Playground GetById(int id, string inspectionType)
+        public Playground GetById(int id, string inspectionType, bool minimal)
         {
-            return this.readPlaygroundFromDb(id, null, inspectionType);
+            return this.readPlaygroundFromDb(id, null, inspectionType, minimal);
         }
 
         // GET Playground/byname?name=...&inspectiontype=Hauptinspektion (HI)
         [Route("/Playground/byname")]
         [HttpGet]
         [Authorize]
-        public Playground GetByName(string name, string inspectionType)
+        public Playground GetByName(string name, string inspectionType, bool minimal)
         {
-            return this.readPlaygroundFromDb(-1, name, inspectionType);
+            return this.readPlaygroundFromDb(-1, name, inspectionType, minimal);
         }
 
         // GET playground/onlynames?inspectiontype=Hauptinspektion (HI)
@@ -329,7 +329,8 @@ namespace playground_check_service.Controllers
 
         }
 
-        private Playground readPlaygroundFromDb(int id, string name, string inspectionType)
+        private Playground readPlaygroundFromDb(int id, string name,
+                string inspectionType, bool minimal)
         {
             Playground currentPlayground = null;
 
@@ -395,17 +396,13 @@ namespace playground_check_service.Controllers
                 {
                     this.readDetailsOfPlaydevices(currentPlayground.playdevices, inspectionType);
 
-                    this.readInspectionCriteriaOfPlaydevices(currentPlayground.playdevices, inspectionType);
-
-                    string[] inspectionTypes = InspectionTypesController._GetTypes();
-
-                    this.readReportsOfPlaydevices(currentPlayground.playdevices, inspectionTypes);
-
-                    foreach (PlaydeviceFeature playdevice in currentPlayground.playdevices)
+                    if (!minimal)
                     {
-                        this.readReportsOfPlaydeviceDetail(playdevice.playdeviceDetails, inspectionTypes);
-                    }
+                        this.readInspectionCriteriaOfPlaydevices(currentPlayground.playdevices, inspectionType);
+                        string[] inspectionTypes = InspectionTypesController._GetTypes();
 
+                        this.readReportsOfPlaydevices(currentPlayground.playdevices, inspectionTypes);
+                    }
                 }
 
             }
