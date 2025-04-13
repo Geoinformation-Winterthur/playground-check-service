@@ -29,7 +29,7 @@ namespace playground_check_service.Controllers
         // POST playdevice/
         [HttpPost]
         [Authorize]
-        public ActionResult<ErrorMessage> Post([FromBody] PlaydeviceFeature[] playdevices, bool dryRun = false)
+        public ActionResult<ErrorMessage> Post([FromBody] PlaydeviceFeature playdevice, bool dryRun = false)
         {
             ErrorMessage result = new ErrorMessage();
             User userFromDb = LoginController.getAuthorizedUser(this.User, dryRun);
@@ -39,28 +39,22 @@ namespace playground_check_service.Controllers
                     "Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung.");
             }
 
-            if (playdevices != null)
+            if (playdevice != null)
             {
                 try
                 {
                     PlaydeviceFeatureDAO playdeviceDao = new PlaydeviceFeatureDAO();
 
-                    foreach (PlaydeviceFeature playdevice in playdevices)
+                    bool hasPlaydeviceToBeChecked = playdeviceDao.HasPlaydeviceToBeChecked(playdevice);
+                    if (!hasPlaydeviceToBeChecked)
                     {
-                        bool hasPlaydeviceToBeChecked = playdeviceDao.HasPlaydeviceToBeChecked(playdevice);
-                        if (!hasPlaydeviceToBeChecked)
-                        {
-                            _logger.LogError("Playdevice with FID " + playdevice.properties.fid + " must not be checked " +
-                                "but was sent to service.");
-                            result.errorMessage = "SPK-8";
-                            return result;
-                        }
+                        _logger.LogError("Playdevice with FID " + playdevice.properties.fid + " must not be checked " +
+                            "but was sent to service.");
+                        result.errorMessage = "SPK-8";
+                        return result;
                     }
 
-                    foreach (PlaydeviceFeature playdevice in playdevices)
-                    {
-                        playdeviceDao.Update(playdevice, dryRun);
-                    }
+                    playdeviceDao.Update(playdevice, dryRun);
                 }
                 catch (Exception ex)
                 {

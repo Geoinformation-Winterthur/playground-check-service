@@ -9,9 +9,6 @@ namespace playground_check_service.Model
         public string type { get; set; }
         public PlaydeviceFeatureProperties properties { get; set; }
         public Geometry geometry { get; set; } = new Geometry();
-        
-        public PlaydeviceDetail[] playdeviceDetails { get; set; }
-                    = new PlaydeviceDetail[0];
 
         public PlaydeviceFeature()
         {

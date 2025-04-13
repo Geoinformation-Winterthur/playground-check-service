@@ -394,8 +394,6 @@ namespace playground_check_service.Controllers
 
                 if (currentPlayground.playdevices != null)
                 {
-                    this.readDetailsOfPlaydevices(currentPlayground.playdevices, inspectionType);
-
                     if (!minimal)
                     {
                         this.readInspectionCriteriaOfPlaydevices(currentPlayground.playdevices, inspectionType);
@@ -551,103 +549,6 @@ namespace playground_check_service.Controllers
             }
         }
 
-        private void readReportsOfPlaydeviceDetail(PlaydeviceDetail[] playdeviceDetails, string[] inspectionTypes)
-        {
-            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
-            {
-                pgConn.Open();
-                foreach (PlaydeviceDetail playdeviceDetail in playdeviceDetails)
-                {
-                    List<InspectionReport> lastInspectionReports = new List<InspectionReport>();
-                    List<InspectionReport> nextToLastInspectionReports = new List<InspectionReport>();
-
-                    foreach (string inspectionType in inspectionTypes)
-                    {
-
-                        InspectionCriterionDAO inspectionCriterionDAO = new InspectionCriterionDAO();
-                        List<string> inspectionDates = inspectionCriterionDAO
-                                .GetInspectionDatesOfPlaydevice(playdeviceDetail.properties.fid,
-                                            inspectionType, true);
-
-                        Boolean firstRun = true;
-                        NpgsqlCommand selectInspRepComm = pgConn.CreateCommand();
-                        foreach (string inspectionDate in inspectionDates)
-                        {
-                            selectInspRepComm.CommandText = "SELECT tid, inspektionsart, datum_inspektion, " +
-                                    "kontrolleur, pruefung_text, " +
-                                    "pruefung_erledigt, pruefung_kommentar, " +
-                                    "wartung_text, wartung_erledigung, " +
-                                    "wartung_kommentar, fallschutz " +
-                                    "FROM \"wgr_sp_insp_bericht\" " +
-                                    "WHERE fid_geraet_detail=" + playdeviceDetail.properties.fid + " " +
-                                    "AND inspektionsart='" + inspectionType + "' " +
-                                    "AND datum_inspektion='" + inspectionDate + "'";
-
-                            using (NpgsqlDataReader reader = selectInspRepComm.ExecuteReader())
-                            {
-                                while (reader.Read())
-                                {
-                                    if (firstRun)
-                                    {
-                                        InspectionReport lastInspectionReport = readInspectionReport(reader);
-                                        lastInspectionReports.Add(lastInspectionReport);
-
-                                    }
-                                    else
-                                    {
-                                        InspectionReport nextToLastInspectionReport = readInspectionReport(reader);
-                                        nextToLastInspectionReports.Add(nextToLastInspectionReport);
-                                    }
-                                }
-                            }
-                            firstRun = false;
-                        }
-                    }
-                    playdeviceDetail.properties.lastInspectionReports = lastInspectionReports.ToArray();
-                    playdeviceDetail.properties.nextToLastInspectionReports = nextToLastInspectionReports.ToArray();
-
-                }
-                pgConn.Close();
-            }
-        }
-
-        private void readDetailsOfPlaydevices(PlaydeviceFeature[] playdevices, string inspectionType)
-        {
-            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
-            {
-                pgConn.Open();
-                NpgsqlCommand selectComm = pgConn.CreateCommand();
-
-                List<PlaydeviceDetail> playdevicesDetails = new List<PlaydeviceDetail>();
-                List<PlaydeviceDetail> playdevicesDetailsTemp = new List<PlaydeviceDetail>();
-                foreach (PlaydeviceFeature currentPlaydevice in playdevices)
-                {
-                    selectComm.CommandText = "SELECT fid, beschrieb FROM \"wgr_sp_geraetedetail\" " +
-                                        "WHERE fid_spielgeraet=" + currentPlaydevice.properties.fid;
-
-                    using (NpgsqlDataReader reader = selectComm.ExecuteReader())
-                    {
-                        PlaydeviceDetail playdeviceDetail;
-                        playdevicesDetailsTemp = new List<PlaydeviceDetail>();
-                        while (reader.Read())
-                        {
-                            playdeviceDetail = new PlaydeviceDetail();
-                            playdeviceDetail.properties = new PlaydeviceFeatureProperties();
-                            playdeviceDetail.properties.fid = reader.GetInt32(0);
-                            playdeviceDetail.properties.type = new PlaydeviceFeatureProperties.Type();
-                            playdeviceDetail.properties.type.description = reader.IsDBNull(1) ? "" : reader.GetString(1);
-                            playdevicesDetailsTemp.Add(playdeviceDetail);
-                            playdevicesDetails.Add(playdeviceDetail);
-                        }
-                        currentPlaydevice.playdeviceDetails = playdevicesDetailsTemp.ToArray();
-                    }
-                }
-                pgConn.Close();
-
-                this.readInspectionCriteriaOfPlaydeviceDetails(playdevicesDetails.ToArray(), inspectionType);
-            }
-        }
-
         private void readInspectionCriteriaOfPlaydevices(PlaydeviceFeature[] playdevices, string inspectionType)
         {
             if (inspectionType != null && inspectionType.Length > 5)
@@ -703,48 +604,6 @@ namespace playground_check_service.Controllers
         {
             InspectionCriterionDAO inspectionCriterionDAO = new InspectionCriterionDAO();
             return inspectionCriterionDAO.Read(reader).ToArray();
-        }
-
-        private void readInspectionCriteriaOfPlaydeviceDetails(PlaydeviceDetail[] playdeviceDetails, string inspectionType)
-        {
-            if (inspectionType != null && inspectionType.Length > 5)
-            {
-                inspectionType = inspectionType.Substring(0, inspectionType.Length - 5);
-            }
-
-            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
-            {
-                pgConn.Open();
-                NpgsqlCommand selectComm = pgConn.CreateCommand();
-
-                foreach (PlaydeviceDetail currentPlaydeviceDetail in playdeviceDetails)
-                {
-                    selectComm.CommandText = "SELECT bereich, pruefung, wartung, " +
-                            "inspektionsart, pruefung_kurztext " +
-                            "FROM \"wgr_v_sp_gerdet_insp_krit\"" +
-                            "WHERE fid_geraet_detail=" + currentPlaydeviceDetail.properties.fid +
-                            " AND inspektionsart=@inspektionsart";
-                    selectComm.Parameters.AddWithValue("inspektionsart", inspectionType);
-
-                    using (NpgsqlDataReader reader = selectComm.ExecuteReader())
-                    {
-                        InspectionCriterion inspectionCriterion;
-                        List<InspectionCriterion> inspectionCriteria = new List<InspectionCriterion>();
-                        while (reader.Read())
-                        {
-                            inspectionCriterion = new InspectionCriterion();
-                            inspectionCriterion.realm = reader.IsDBNull(0) ? "" : reader.GetString(0);
-                            inspectionCriterion.check = reader.IsDBNull(1) ? "" : reader.GetString(1);
-                            inspectionCriterion.maintenance = reader.IsDBNull(2) ? "" : reader.GetString(2);
-                            inspectionCriterion.inspectionType = reader.IsDBNull(3) ? "" : reader.GetString(3);
-                            inspectionCriterion.checkShortText = reader.IsDBNull(4) ? "" : reader.GetString(4);
-                            inspectionCriteria.Add(inspectionCriterion);
-                        }
-                        currentPlaydeviceDetail.properties.generalInspectionCriteria = inspectionCriteria.ToArray();
-                    }
-                }
-                pgConn.Close();
-            }
         }
 
         private InspectionReport readInspectionReport(NpgsqlDataReader reader)
