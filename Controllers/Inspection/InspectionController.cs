@@ -89,65 +89,75 @@ namespace playground_check_service.Controllers
             using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
             {
                 pgConn.Open();
-                try
+                using (NpgsqlTransaction trans = pgConn.BeginTransaction())
                 {
-                    using NpgsqlTransaction trans = pgConn.BeginTransaction();
-
-                    int inspectionTid = -1;
-
-                    inspectionTid = InspectionController.writeInspection(
-                                        inspectionReports[0],
-                                        userFromDb, pgConn, dryRun);
-
-
-                    NpgsqlCommand selectIfCanBeChecked;
-                    bool canBeChecked;
-                    foreach (InspectionReport inspectionReport in inspectionReports)
+                    try
                     {
-                        canBeChecked = false;
-                        selectIfCanBeChecked = pgConn.CreateCommand();
-                        if(inspectionReport.playdeviceFid != 0){
-                            selectIfCanBeChecked.CommandText = @"SELECT nicht_zu_pruefen, nicht_pruefbar
+                        int inspectionTid = -1;
+
+                        inspectionTid = writeInspection(inspectionReports[0],
+                                            userFromDb, pgConn, dryRun);
+
+                        NpgsqlCommand selectIfCanBeChecked;
+                        bool canBeChecked;
+                        foreach (InspectionReport inspectionReport in inspectionReports)
+                        {
+                            canBeChecked = false;
+                            selectIfCanBeChecked = pgConn.CreateCommand();
+                            if (inspectionReport.playdeviceFid != 0)
+                            {
+                                selectIfCanBeChecked.CommandText = @"SELECT nicht_zu_pruefen, nicht_pruefbar
                                         FROM ""gr_v_spielgeraete"" 
                                         WHERE fid=@fid";
-                            selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceFid);
-                        } else {
-                            selectIfCanBeChecked.CommandText = @"SELECT geraet.nicht_zu_pruefen,
+                                selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceFid);
+                            }
+                            else
+                            {
+                                selectIfCanBeChecked.CommandText = @"SELECT geraet.nicht_zu_pruefen,
                                             geraet.nicht_pruefbar
                                         FROM ""wgr_sp_geraetedetail"" detail
                                         LEFT JOIN ""gr_v_spielgeraete"" geraet
                                             ON detail.fid_spielgeraet = geraet.fid
                                         WHERE detail.fid=@fid";
-                            selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceDetailFid);
+                                selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceDetailFid);
+                            }
+
+                            using (NpgsqlDataReader reader = selectIfCanBeChecked.ExecuteReader())
+                            {
+                                reader.Read();
+                                canBeChecked = (reader.IsDBNull(0) || !reader.GetBoolean(0)) &&
+                                        (reader.IsDBNull(1) || !reader.GetBoolean(1));
+                            }
+
+                            if (canBeChecked)
+                            {
+                                WriteInspectionReport(inspectionTid, inspectionReport,
+                                                userFromDb, pgConn, dryRun);
+
+                            }
+
                         }
-
-                        using (NpgsqlDataReader reader = selectIfCanBeChecked.ExecuteReader())
-                        {
-                            reader.Read();
-                            canBeChecked = (reader.IsDBNull(0) || !reader.GetBoolean(0)) &&
-                                    (reader.IsDBNull(1) || !reader.GetBoolean(1));
-                        }
-
-                        if (canBeChecked)
-                        {
-                            WriteInspectionReport(inspectionTid, inspectionReport,
-                                            userFromDb, pgConn, dryRun);
-
-                        }
-
+                        trans.Commit();
+                        return Ok(result); // return empty error message (success)
                     }
-                    return Ok(result);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex.Message);
+                    catch (Exception ex)
+                    {
+                        try
+                        {
+                            trans.Rollback();
+                        }
+                        catch (Exception exRollback)
+                        {
+                            _logger.LogError(exRollback, "Error while trying to roll back the storing of inspections reports");
+                        }
 
-                    result.errorMessage = "SPK-3";
-                    return Ok(result);  // Internal server error
-                }
+                        _logger.LogError(ex, "Error while trying to store inspection reports");
 
+                        result.errorMessage = "SPK-3";
+                        return Ok(result);  // return error
+                    }
+                }
             }
-
         }
 
         private static int writeInspection(InspectionReport exampleInspectionReport,
@@ -247,23 +257,21 @@ namespace playground_check_service.Controllers
             NpgsqlDate dateOfService = (NpgsqlDate)inspectionReport.playdeviceDateOfService;
             insertInspectionReportCommand.Parameters.AddWithValue("datum_inspektion", dateOfService);
             insertInspectionReportCommand.Parameters.AddWithValue("kontrolleur", userFromDb.firstName + " " + userFromDb.lastName);
-            if (inspectionReport.inspectionText == null) inspectionReport.inspectionText = "";
+            if (string.IsNullOrWhiteSpace(inspectionReport.inspectionText))
+                inspectionReport.inspectionText = "";
             insertInspectionReportCommand.Parameters.AddWithValue("pruefung_text", inspectionReport.inspectionText);
             int inspectionDone = inspectionReport.inspectionDone ? 1 : 0;
             insertInspectionReportCommand.Parameters.AddWithValue("pruefung_erledigt", inspectionDone);
-            if (inspectionReport.inspectionComment == null || inspectionReport.inspectionComment.Trim().Length == 0)
-            {
+            if (string.IsNullOrWhiteSpace(inspectionReport.inspectionComment))
                 inspectionReport.inspectionComment = "";
-            }
             insertInspectionReportCommand.Parameters.AddWithValue("pruefung_kommentar", inspectionReport.inspectionComment);
-            if (inspectionReport.maintenanceText == null) inspectionReport.maintenanceText = "";
+            if (string.IsNullOrWhiteSpace(inspectionReport.maintenanceText))
+                inspectionReport.maintenanceText = "";
             insertInspectionReportCommand.Parameters.AddWithValue("wartung_text", inspectionReport.maintenanceText);
             int maintenanceDone = inspectionReport.maintenanceDone ? 1 : 0;
             insertInspectionReportCommand.Parameters.AddWithValue("wartung_erledigung", maintenanceDone);
-            if (inspectionReport.maintenanceComment == null || inspectionReport.maintenanceComment.Trim().Length == 0)
-            {
+            if (string.IsNullOrWhiteSpace(inspectionReport.maintenanceComment))
                 inspectionReport.maintenanceComment = "";
-            }
             insertInspectionReportCommand.Parameters.AddWithValue("wartung_kommentar", inspectionReport.maintenanceComment);
             insertInspectionReportCommand.Parameters.AddWithValue("fallschutz", inspectionReport.fallProtectionType);
 
@@ -319,15 +327,15 @@ namespace playground_check_service.Controllers
         private static NpgsqlDate? _GetTargetDateOfInspection(int playgroundFid, int inspectionTypeId, NpgsqlConnection pgConn)
         {
 
-            if(inspectionTypeId < 1 || inspectionTypeId > 3) return null;
+            if (inspectionTypeId < 1 || inspectionTypeId > 3) return null;
 
             NpgsqlDate? result = null;
 
             string inspectionAttrName = "dat_naech_visu_insp";
             switch (inspectionTypeId)
             {
-                case 2: inspectionAttrName = "dat_naech_oper_insp";break;
-                case 3: inspectionAttrName = "dat_naech_haupt_insp";break;
+                case 2: inspectionAttrName = "dat_naech_oper_insp"; break;
+                case 3: inspectionAttrName = "dat_naech_haupt_insp"; break;
             }
 
             NpgsqlCommand selectTargetDateComm;
