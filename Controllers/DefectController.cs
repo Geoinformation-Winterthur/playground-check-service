@@ -34,7 +34,7 @@ namespace playground_check_service.Controllers
         [Authorize]
         public Defect Get(int tid)
         {
-            DefectDAO defectDAO = new DefectDAO(); 
+            DefectDAO defectDAO = new DefectDAO();
             return defectDAO.Read(tid);
         }
 
@@ -105,7 +105,7 @@ namespace playground_check_service.Controllers
             return Ok(result);
         }
 
-                // GET Defect/Picture/3736373?thumb=true
+        // GET Defect/Picture/3736373?thumb=true
         [HttpGet]
         [Route("/Defect/Picture/{tid}")]
         public IActionResult GetPicture(int tid, bool thumb, bool dryrun = false)
@@ -173,7 +173,7 @@ namespace playground_check_service.Controllers
                         return File(pictureData, mimeType);
                     }
                 }
-                
+
 
             }
             catch (FormatException ex)
@@ -187,15 +187,17 @@ namespace playground_check_service.Controllers
             return StatusCode(500, $"Unbekannter Fehler beim Laden des Bildes.");
         }
 
-
-        public async Task PutictureAsync(DefectPicture defectPic, int defectTid, bool dryRun)
+        // PUT Defect/Picture/3736373
+        [HttpPut]
+        [Route("/Defect/Picture/{defectTid}")]
+        public IActionResult PutPicture([FromBody] DefectPicture defectPic, int defectTid, bool dryRun = false)
         {
-            if (dryRun) return;
+            if (dryRun) Ok();
 
-            await using var pgConn = new NpgsqlConnection(AppConfig.connectionString);
-            await pgConn.OpenAsync();
+            using var pgConn = new NpgsqlConnection(AppConfig.connectionString);
+            pgConn.OpenAsync();
 
-            await using var insertDefectPicCommand = pgConn.CreateCommand();
+            using var insertDefectPicCommand = pgConn.CreateCommand();
             insertDefectPicCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel_foto\" " +
                     "(tid, tid_maengel, picture_base64, picture_base64_thumb, zeitpunkt)" +
                     "VALUES (" +
@@ -206,12 +208,13 @@ namespace playground_check_service.Controllers
             insertDefectPicCommand.Parameters.AddWithValue("picture_base64", defectPic.base64StringPicture);
             insertDefectPicCommand.Parameters.AddWithValue("picture_base64_thumb", defectPic.base64StringPictureThumb);
             insertDefectPicCommand.Parameters.AddWithValue("zeitpunkt", defectPic.afterFixing);
-            int rowsAffected = await insertDefectPicCommand.ExecuteNonQueryAsync();
+            int rowsAffected = insertDefectPicCommand.ExecuteNonQuery();
 
             if (rowsAffected == 0)
             {
-                throw new InvalidOperationException($"Kein Mangel mit tid {defectTid} gefunden oder Bild konnte nicht gespeichert werden.");
+                return BadRequest();
             }
+            return Ok();
         }
 
     }
