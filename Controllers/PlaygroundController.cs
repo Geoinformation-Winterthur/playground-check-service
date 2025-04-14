@@ -520,15 +520,15 @@ namespace playground_check_service.Controllers
                     Boolean firstRun = true;
                     foreach (string inspectionDate in inspectionDates)
                     {
-                        selectInspectionComm.CommandText = "SELECT tid, inspektionsart, datum_inspektion, " +
-                                "kontrolleur, pruefung_text, " +
-                                "pruefung_erledigt, pruefung_kommentar, " +
-                                "wartung_text, wartung_erledigung, " +
-                                "wartung_kommentar, fallschutz " +
-                                "FROM \"wgr_sp_insp_bericht\" " +
-                                "WHERE fid_spielgeraet=" + playdevice.properties.fid + " " +
-                                "AND inspektionsart='" + inspectionType + "' " +
-                                "AND datum_inspektion='" + inspectionDate + "'";
+                        selectInspectionComm.CommandText = $@"SELECT tid, inspektionsart,
+                                datum_inspektion, kontrolleur, pruefung_text, 
+                                pruefung_erledigt, pruefung_kommentar, 
+                                wartung_text, wartung_erledigung, 
+                                wartung_kommentar, fallschutz 
+                                FROM ""wgr_sp_insp_bericht"" 
+                                WHERE fid_spielgeraet={playdevice.properties.fid} 
+                                AND inspektionsart='{inspectionType}' 
+                                AND datum_inspektion='{inspectionDate}'";
 
                         using (NpgsqlDataReader reader = selectInspectionComm.ExecuteReader())
                         {
