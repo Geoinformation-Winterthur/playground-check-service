@@ -158,22 +158,24 @@ namespace playground_check_service.Controllers
             }
         }
 
-        // GET Playground/8262517&inspectiontype=...
+        // GET Playground/8262517&inspectiontype=...&withdefects=true&withinspections=true
         [Route("/Playground/{id}")]
         [HttpGet]
         [Authorize]
-        public Playground GetById(int id, string inspectionType, bool minimal)
+        public Playground GetById(int id, string inspectionType,
+                    bool withdefects = false, bool withinspections = false)
         {
-            return this.readPlaygroundFromDb(id, null, inspectionType, minimal);
+            return this.readPlaygroundFromDb(id, null, inspectionType, withdefects, withinspections);
         }
 
         // GET Playground/byname?name=...&inspectiontype=Hauptinspektion (HI)
         [Route("/Playground/byname")]
         [HttpGet]
         [Authorize]
-        public Playground GetByName(string name, string inspectionType, bool minimal)
+        public Playground GetByName(string name, string inspectionType,
+                bool withdefects = false, bool withinspections = false)
         {
-            return this.readPlaygroundFromDb(-1, name, inspectionType, minimal);
+            return this.readPlaygroundFromDb(-1, name, inspectionType, withdefects, withinspections);
         }
 
         // GET playground/onlynames?inspectiontype=Hauptinspektion (HI)
@@ -189,7 +191,8 @@ namespace playground_check_service.Controllers
                 {
                     userMailAddress = claim.Value;
                     break;
-                };
+                }
+                ;
             }
             List<Playground> resultTemp = new List<Playground>();
 
@@ -330,7 +333,7 @@ namespace playground_check_service.Controllers
         }
 
         private Playground readPlaygroundFromDb(int id, string name,
-                string inspectionType, bool minimal)
+                string inspectionType, bool withdefects = false, bool withinspections = false)
         {
             Playground currentPlayground = null;
 
@@ -394,14 +397,15 @@ namespace playground_check_service.Controllers
 
                 if (currentPlayground.playdevices != null)
                 {
-                    if (!minimal)
+                    if (withinspections)
                     {
                         this.readInspectionCriteriaOfPlaydevices(currentPlayground.playdevices, inspectionType);
                         string[] inspectionTypes = InspectionTypesController._GetTypes();
 
                         this.readReportsOfPlaydevices(currentPlayground.playdevices, inspectionTypes);
                     }
-                    readDefectsOfPlaydevices(currentPlayground.playdevices);
+                    if (withdefects)
+                        this.readDefectsOfPlaydevices(currentPlayground.playdevices);
                 }
 
             }
