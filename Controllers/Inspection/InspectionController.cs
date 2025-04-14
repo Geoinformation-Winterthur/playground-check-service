@@ -2,7 +2,6 @@
 //      Author: Edgar Butwilowski
 //      Copyright (c) Vermessungsamt Winterthur. All rights reserved.
 // </copyright>
-using System.Transactions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
@@ -56,8 +55,14 @@ namespace playground_check_service.Controllers
 
             string inspectionType = inspectionReports[0].inspectionType;
 
+            if (string.IsNullOrWhiteSpace(inspectionType))
+            {
+                result.errorMessage = "SPK-6";
+                return Ok(result);
+                // Angabe Inspektionstyp fehlt.
+            }
+
             Dictionary<int, DateTime> playdeviceDates = new Dictionary<int, DateTime>();
-            Dictionary<int, DateTime> playdeviceDetailDates = new Dictionary<int, DateTime>();
             foreach (InspectionReport inspectionReport in inspectionReports)
             {
                 if (inspectionReport.inspectionType != inspectionType)
@@ -76,12 +81,6 @@ namespace playground_check_service.Controllers
                 if (inspectionReport.playdeviceFid > 0 && !playdeviceDates.ContainsKey(inspectionReport.playdeviceFid))
                 {
                     playdeviceDates.Add(inspectionReport.playdeviceFid,
-                                    inspectionReport.playdeviceDateOfService);
-                }
-                else if (inspectionReport.playdeviceDetailFid > 0 &&
-                          !playdeviceDetailDates.ContainsKey(inspectionReport.playdeviceDetailFid))
-                {
-                    playdeviceDetailDates.Add(inspectionReport.playdeviceDetailFid,
                                     inspectionReport.playdeviceDateOfService);
                 }
             }
@@ -111,22 +110,14 @@ namespace playground_check_service.Controllers
                                         WHERE fid=@fid";
                                 selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceFid);
                             }
-                            else
-                            {
-                                selectIfCanBeChecked.CommandText = @"SELECT geraet.nicht_zu_pruefen,
-                                            geraet.nicht_pruefbar
-                                        FROM ""wgr_sp_geraetedetail"" detail
-                                        LEFT JOIN ""gr_v_spielgeraete"" geraet
-                                            ON detail.fid_spielgeraet = geraet.fid
-                                        WHERE detail.fid=@fid";
-                                selectIfCanBeChecked.Parameters.AddWithValue("fid", inspectionReport.playdeviceDetailFid);
-                            }
 
                             using (NpgsqlDataReader reader = selectIfCanBeChecked.ExecuteReader())
                             {
                                 reader.Read();
-                                canBeChecked = (reader.IsDBNull(0) || !reader.GetBoolean(0)) &&
-                                        (reader.IsDBNull(1) || !reader.GetBoolean(1));
+                                bool zuPruefen = reader.IsDBNull(0) || !reader.GetBoolean(0);
+                                bool pruefbar = reader.IsDBNull(1) || !reader.GetBoolean(1);
+
+                                canBeChecked = zuPruefen && pruefbar;
                             }
 
                             if (canBeChecked)
@@ -231,11 +222,9 @@ namespace playground_check_service.Controllers
             return inspectionTid;
         }
 
-        private static int WriteInspectionReport(int inspectionTid, InspectionReport inspectionReport,
+        private static void WriteInspectionReport(int inspectionTid, InspectionReport inspectionReport,
                     User userFromDb, NpgsqlConnection pgConn, bool dryRun)
         {
-            if (dryRun) return -1;
-
             NpgsqlCommand insertInspectionReportCommand;
             insertInspectionReportCommand = pgConn.CreateCommand();
             insertInspectionReportCommand.CommandText = "INSERT INTO \"wgr_sp_insp_bericht\" " +
@@ -275,7 +264,8 @@ namespace playground_check_service.Controllers
             insertInspectionReportCommand.Parameters.AddWithValue("wartung_kommentar", inspectionReport.maintenanceComment);
             insertInspectionReportCommand.Parameters.AddWithValue("fallschutz", inspectionReport.fallProtectionType);
 
-            return (int)insertInspectionReportCommand.ExecuteScalar();
+            if (!dryRun) 
+                insertInspectionReportCommand.ExecuteNonQuery();
 
         }
 
@@ -284,26 +274,6 @@ namespace playground_check_service.Controllers
             int result = -1;
 
             int playdeviceFid = exampleInspectionReport.playdeviceFid;
-
-            if (exampleInspectionReport.playdeviceFid == 0 &&
-                        exampleInspectionReport.playdeviceDetailFid != 0)
-            {
-                NpgsqlCommand selectPlaydeviceFid;
-                selectPlaydeviceFid = pgConn.CreateCommand();
-                selectPlaydeviceFid.CommandText = "SELECT fid_spielgeraet FROM \"wgr_sp_geraetedetail\" " +
-                            "WHERE fid = @fid_spielgeraetedetail";
-                selectPlaydeviceFid.Parameters
-                        .AddWithValue("fid_spielgeraetedetail", exampleInspectionReport.playdeviceDetailFid);
-
-                using (NpgsqlDataReader reader = selectPlaydeviceFid.ExecuteReader())
-                {
-                    if (reader.Read())
-                    {
-                        playdeviceFid = reader.GetInt32(0);
-                    }
-                }
-
-            }
 
             if (playdeviceFid != 0)
             {

@@ -424,8 +424,8 @@ namespace playground_check_service.Controllers
                 selectComm.CommandText = "SELECT spg.fid, spg.bemerkungen, spg.geom, " +
                         "gart.short_value, gart.value, spg.norm, lief.name, " +
                         "spg.empfohlenes_sanierungsjahr, spg.bemerkung_empf_sanierung, " +
-                        "spg.nicht_zu_pruefen, spg.bau_dat, " +
-                        "spg.id_sanierungsart " +
+                        "spg.nicht_zu_pruefen, spg.nicht_pruefbar, spg.grund_nicht_pruefbar, " +
+                        "spg.bau_dat, spg.id_sanierungsart " +
                         "FROM \"gr_v_spielgeraete\" spg " +
                         "LEFT JOIN \"wgr_sp_spielgeraeteart_tbd\" gart ON spg.id_geraeteart = gart.id " +
                         "LEFT JOIN \"wgr_sp_lieferant\" lief ON spg.id_lieferant = lief.fid " +
@@ -460,16 +460,18 @@ namespace playground_check_service.Controllers
                         currentPlaydevice.properties.commentRecommendedYearOfRenovation = reader.IsDBNull(8) ? "" : reader.GetString(8);
 
                         currentPlaydevice.properties.notToBeChecked = reader.IsDBNull(9) ? false : reader.GetBoolean(9);
+                        currentPlaydevice.properties.cannotBeChecked = reader.IsDBNull(10) ? false : reader.GetBoolean(10);
+                        currentPlaydevice.properties.cannotBeCheckedReason = reader.IsDBNull(11) ? "" : reader.GetString(11);
 
-                        if (!reader.IsDBNull(10))
+                        if (!reader.IsDBNull(12))
                         {
-                            NpgsqlDate constructionDate = reader.GetDate(10);
+                            NpgsqlDate constructionDate = reader.GetDate(12);
                             currentPlaydevice.properties.constructionDate = (DateTime)constructionDate;
                         }
 
-                        if (!reader.IsDBNull(11))
+                        if (!reader.IsDBNull(13))
                         {
-                            int idRenovationType = reader.GetInt32(11);
+                            int idRenovationType = reader.GetInt32(13);
                             if (idRenovationType == 1)
                                 currentPlaydevice.properties.renovationType = "Totalsanierung";
                             else if (idRenovationType == 2)
