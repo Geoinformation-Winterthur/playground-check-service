@@ -470,13 +470,7 @@ namespace playground_check_service.Controllers
                         }
 
                         if (!reader.IsDBNull(13))
-                        {
-                            int idRenovationType = reader.GetInt32(13);
-                            if (idRenovationType == 1)
-                                currentPlaydevice.properties.renovationType = "Totalsanierung";
-                            else if (idRenovationType == 2)
-                                currentPlaydevice.properties.renovationType = "Teilsanierung";
-                        }
+                            currentPlaydevice.properties.renovationType = reader.GetInt32(13);
 
                         currentPlaydevices.Add(currentPlaydevice);
                     }

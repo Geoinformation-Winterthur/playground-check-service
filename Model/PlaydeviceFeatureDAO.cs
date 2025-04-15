@@ -88,13 +88,8 @@ namespace playground_check_service.Model
                     playdevice.properties.recommendedYearOfRenovation > 0 ?
                                 playdevice.properties.recommendedYearOfRenovation : DBNull.Value);
 
-            if (playdevice.properties.renovationType == "Totalsanierung") {
-                updatePlaydeviceCommand.Parameters.AddWithValue("id_sanierungsart", 1);
-            } else if (playdevice.properties.renovationType == "Teilsanierung") {
-                updatePlaydeviceCommand.Parameters.AddWithValue("id_sanierungsart", 2);
-            } else {
-                updatePlaydeviceCommand.Parameters.AddWithValue("id_sanierungsart", DBNull.Value);
-            }
+            updatePlaydeviceCommand.Parameters.AddWithValue("id_sanierungsart",
+                    playdevice.properties.renovationType != 0 ? playdevice.properties.renovationType : DBNull.Value);
 
             if (playdevice.properties.commentRecommendedYearOfRenovation != null &&
                         playdevice.properties.commentRecommendedYearOfRenovation.Length != 0)

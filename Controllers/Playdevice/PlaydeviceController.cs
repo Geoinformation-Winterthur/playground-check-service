@@ -44,16 +44,6 @@ namespace playground_check_service.Controllers
                 try
                 {
                     PlaydeviceFeatureDAO playdeviceDao = new PlaydeviceFeatureDAO();
-
-                    bool hasPlaydeviceToBeChecked = playdeviceDao.HasPlaydeviceToBeChecked(playdevice);
-                    if (!hasPlaydeviceToBeChecked)
-                    {
-                        _logger.LogError("Playdevice with FID " + playdevice.properties.fid + " must not be checked " +
-                            "but was sent to service.");
-                        result.errorMessage = "SPK-8";
-                        return result;
-                    }
-
                     playdeviceDao.Update(playdevice, dryRun);
                 }
                 catch (Exception ex)
