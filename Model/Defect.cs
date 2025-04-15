@@ -17,4 +17,5 @@ public class Defect
     public DateTime? dateDone { get; set; }
     public string defectComment { get; set; } = "";
     public int defectsResponsibleBodyId { get; set; } = -1;
+    public string errorMessage { get; set; } = "";
 }

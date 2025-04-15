@@ -75,9 +75,8 @@ namespace playground_check_service.Controllers
         // PUT defect/?inspectiontid=...
         [HttpPut]
         [Authorize]
-        public ActionResult<ErrorMessage> Put([FromBody] Defect defect, bool dryRun = false)
+        public ActionResult<Defect> Put([FromBody] Defect defect, bool dryRun = false)
         {
-            ErrorMessage result = new ErrorMessage();
             User userFromDb = LoginController.getAuthorizedUser(this.User, dryRun);
             if (userFromDb == null || userFromDb.fid == 0)
             {
@@ -90,19 +89,20 @@ namespace playground_check_service.Controllers
                 try
                 {
                     DefectDAO defectDao = new DefectDAO();
-                    defectDao.Update(defect, userFromDb, dryRun);
+                    defectDao.Insert(defect, userFromDb, dryRun);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex.Message);
-                    result.errorMessage = "SPK-3";
+                    defect.errorMessage = "SPK-3";
                 }
             }
             else
             {
-                result.errorMessage = "SPK-4";
+                Defect errorMessage = new Defect();
+                errorMessage.errorMessage = "SPK-4";
             }
-            return Ok(result);
+            return Ok(defect);
         }
 
         // GET Defect/Picture/3736373?thumb=true
