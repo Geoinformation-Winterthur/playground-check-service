@@ -179,9 +179,7 @@ namespace playground_check_service.Model
             }
             int defectsResponsibleBodyIdOrdinal = reader.GetOrdinal("id_zustaendig_behebung");            
             if (!reader.IsDBNull(defectsResponsibleBodyIdOrdinal))
-            {
                 defect.defectsResponsibleBodyId = reader.GetInt32(defectsResponsibleBodyIdOrdinal);
-            }
             return defect;
         }
 
@@ -191,11 +189,11 @@ namespace playground_check_service.Model
         {
             NpgsqlCommand insertDefectCommand = pgConn.CreateCommand();
             insertDefectCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel\" " +
-                    "(tid, fid_spielgeraet, id_dringlichkeit, beschrieb, bemerkunng, " +
+                    "(tid, fid_spielgeraet, datum, id_dringlichkeit, beschrieb, bemerkunng, " +
                     "datum_erledigung, fid_erledigung, id_zustaendig_behebung)" +
                     "VALUES (" +
                     "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_mangel\"), " +
-                    "@fid_spielgeraet, @dringlichkeit, @beschrieb, " +
+                    "@fid_spielgeraet, CURRENT_TIMESTAMP, @dringlichkeit, @beschrieb, " +
                     "@bemerkung, @datum_erledigung, @fid_erledigung, @id_zustaendig_behebung) RETURNING tid";
 
             insertDefectCommand.Parameters.AddWithValue("fid_spielgeraet", defect.playdeviceFid);
@@ -207,7 +205,7 @@ namespace playground_check_service.Model
 
             if (defect.dateDone != null)
             {
-                NpgsqlDate dateDone = (NpgsqlDate)defect.dateDone;
+                NpgsqlDate dateDone = (NpgsqlDate) DateTime.Now;
                 insertDefectCommand.Parameters.AddWithValue("datum_erledigung", dateDone);
                 insertDefectCommand.Parameters.AddWithValue("fid_erledigung", userFromDb.fid);
             }
@@ -217,25 +215,6 @@ namespace playground_check_service.Model
                 insertDefectCommand.Parameters.AddWithValue("fid_erledigung", DBNull.Value);
             }
             return insertDefectCommand;
-        }
-
-        private static DbCommand CreateCommandForInsertPicture(DefectPicture defectPic,
-                        int defectTid, NpgsqlConnection pgConn)
-        {
-            NpgsqlCommand insertDefectPicCommand = pgConn.CreateCommand();
-            insertDefectPicCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel_foto\" " +
-                    "(tid, tid_maengel, picture_base64, picture_base64_thumb, zeitpunkt)" +
-                    "VALUES (" +
-                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_mangel_foto\"), " +
-                    "@tid_maengel, @picture_base64, @picture_base64_thumb, @zeitpunkt)";
-
-
-            insertDefectPicCommand.Parameters.AddWithValue("tid_maengel", defectTid);
-            insertDefectPicCommand.Parameters.AddWithValue("picture_base64", defectPic.base64StringPicture);
-            insertDefectPicCommand.Parameters.AddWithValue("picture_base64_thumb", defectPic.base64StringPictureThumb);
-            insertDefectPicCommand.Parameters.AddWithValue("zeitpunkt", defectPic.afterFixing);
-
-            return insertDefectPicCommand;
         }
 
         private static int[] _ReadAllPictureTids(int defectTid, bool isFixed, NpgsqlConnection pgConn)
