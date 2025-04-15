@@ -198,23 +198,23 @@ namespace playground_check_service.Controllers
             pgConn.OpenAsync();
 
             using var insertDefectPicCommand = pgConn.CreateCommand();
-            insertDefectPicCommand.CommandText = "INSERT INTO \"wgr_sp_insp_mangel_foto\" " +
-                    "(tid, tid_maengel, picture_base64, picture_base64_thumb, zeitpunkt)" +
-                    "VALUES (" +
-                    "(SELECT CASE WHEN max(tid) IS NULL THEN 1 ELSE max(tid) + 1 END FROM \"wgr_sp_insp_mangel_foto\"), " +
-                    "@tid_maengel, @picture_base64, @picture_base64_thumb, @zeitpunkt)";
+            insertDefectPicCommand.CommandText = @"INSERT INTO ""wgr_sp_insp_mangel_foto"" 
+                (tid, tid_maengel, picture_base64, picture_base64_thumb, zeitpunkt)
+                VALUES (
+                    (SELECT COALESCE(MAX(tid), 0) + 1 FROM ""wgr_sp_insp_mangel_foto""), 
+                    @tid_maengel, @picture_base64, @picture_base64_thumb, @zeitpunkt)
+                RETURNING tid;";
 
             insertDefectPicCommand.Parameters.AddWithValue("tid_maengel", defectTid);
             insertDefectPicCommand.Parameters.AddWithValue("picture_base64", defectPic.base64StringPicture);
             insertDefectPicCommand.Parameters.AddWithValue("picture_base64_thumb", defectPic.base64StringPictureThumb);
             insertDefectPicCommand.Parameters.AddWithValue("zeitpunkt", defectPic.afterFixing);
-            int rowsAffected = insertDefectPicCommand.ExecuteNonQuery();
+            var newTid = insertDefectPicCommand.ExecuteScalar();
 
-            if (rowsAffected == 0)
-            {
+            if (newTid == null)
                 return BadRequest();
-            }
-            return Ok();
+
+            return Ok(new { tid = newTid });
         }
 
     }
