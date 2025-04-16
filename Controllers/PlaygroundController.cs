@@ -529,16 +529,16 @@ namespace playground_check_service.Controllers
                         int currInspectionTid = -1;
                         if(reader.Read()){
                             InspectionReport inspectionReport = readInspectionReport(reader);
-                            lastInspectionReports.Add(inspectionReport);
+                            nextToLastInspectionReports.Add(inspectionReport);
                             currInspectionTid = inspectionReport.tidInspection;
                         }
                         while (reader.Read() && currInspectionTid != -1)
                         {
                             InspectionReport inspectionReport = readInspectionReport(reader);
                             if (inspectionReport.tidInspection == currInspectionTid)
-                                lastInspectionReports.Add(inspectionReport);
-                            else
                                 nextToLastInspectionReports.Add(inspectionReport);
+                            else
+                                lastInspectionReports.Add(inspectionReport);
                         }
                     }
                 }
