@@ -504,44 +504,42 @@ namespace playground_check_service.Controllers
 
                 foreach (string inspectionType in inspectionTypes)
                 {
-
-                    InspectionCriterionDAO inspectionCriterionDAO = new InspectionCriterionDAO();
-                    List<string> inspectionDates = inspectionCriterionDAO
-                            .GetInspectionDatesOfPlaydevice(playdevice.properties.fid,
-                                        inspectionType, false);
-
                     NpgsqlCommand selectInspectionComm = pgConn.CreateCommand();
-                    Boolean firstRun = true;
-                    foreach (string inspectionDate in inspectionDates)
+                    selectInspectionComm.CommandText = $@"SELECT tid, inspektionsart,
+                            datum_inspektion, kontrolleur, pruefung_text,
+                            pruefung_erledigt, pruefung_kommentar,
+                            wartung_text, wartung_erledigung,
+                            wartung_kommentar, fallschutz, tid_inspektion
+                            FROM ""wgr_sp_insp_bericht""
+                            WHERE tid_inspektion IN (
+                                SELECT tid_inspektion
+                                FROM ""wgr_sp_insp_bericht""
+                                WHERE fid_spielgeraet = {playdevice.properties.fid}
+                                  AND inspektionsart = '{inspectionType}'
+                                GROUP BY tid_inspektion, datum_inspektion
+                                ORDER BY datum_inspektion DESC
+                                LIMIT 2
+                            )
+                            AND fid_spielgeraet = {playdevice.properties.fid}
+                            AND inspektionsart = '{inspectionType}'
+                            ORDER BY datum_inspektion, tid_inspektion DESC;";
+
+                    using (NpgsqlDataReader reader = selectInspectionComm.ExecuteReader())
                     {
-                        selectInspectionComm.CommandText = $@"SELECT tid, inspektionsart,
-                                datum_inspektion, kontrolleur, pruefung_text, 
-                                pruefung_erledigt, pruefung_kommentar, 
-                                wartung_text, wartung_erledigung, 
-                                wartung_kommentar, fallschutz 
-                                FROM ""wgr_sp_insp_bericht"" 
-                                WHERE fid_spielgeraet={playdevice.properties.fid} 
-                                AND inspektionsart='{inspectionType}' 
-                                AND datum_inspektion='{inspectionDate}'";
-
-                        using (NpgsqlDataReader reader = selectInspectionComm.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                if (firstRun)
-                                {
-                                    InspectionReport lastInspectionReport = readInspectionReport(reader);
-                                    lastInspectionReports.Add(lastInspectionReport);
-
-                                }
-                                else
-                                {
-                                    InspectionReport nextToLastInspectionReport = readInspectionReport(reader);
-                                    nextToLastInspectionReports.Add(nextToLastInspectionReport);
-                                }
-                            }
+                        int currInspectionTid = -1;
+                        if(reader.Read()){
+                            InspectionReport inspectionReport = readInspectionReport(reader);
+                            lastInspectionReports.Add(inspectionReport);
+                            currInspectionTid = inspectionReport.tidInspection;
                         }
-                        firstRun = false;
+                        while (reader.Read() && currInspectionTid != -1)
+                        {
+                            InspectionReport inspectionReport = readInspectionReport(reader);
+                            if (inspectionReport.tidInspection == currInspectionTid)
+                                lastInspectionReports.Add(inspectionReport);
+                            else
+                                nextToLastInspectionReports.Add(inspectionReport);
+                        }
                     }
                 }
                 playdevice.properties.lastInspectionReports = lastInspectionReports.ToArray();
@@ -624,6 +622,7 @@ namespace playground_check_service.Controllers
             inspectionReport.maintenanceDone = reader.IsDBNull(8) || reader.GetInt32(8) == 0 ? false : true;
             inspectionReport.maintenanceComment = reader.IsDBNull(9) ? "" : reader.GetString(9);
             inspectionReport.fallProtectionType = reader.IsDBNull(10) ? "" : reader.GetString(10);
+            inspectionReport.tidInspection = reader.IsDBNull(11) ? -1 : reader.GetInt32(11);
             return inspectionReport;
         }
 

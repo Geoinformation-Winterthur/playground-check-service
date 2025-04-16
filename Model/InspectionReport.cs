@@ -21,6 +21,8 @@ namespace playground_check_service.Model
 
         public int playdeviceFid { get; set; }
         public int playdeviceDetailFid { get; set; }
+
+        public int tidInspection { get; set; }
         public DateTime playdeviceDateOfService { get; set; }
     }
 }
