@@ -62,7 +62,6 @@ namespace playground_check_service.Controllers
                 // Angabe Inspektionstyp fehlt.
             }
 
-            Dictionary<int, DateTime> playdeviceDates = new Dictionary<int, DateTime>();
             foreach (InspectionReport inspectionReport in inspectionReports)
             {
                 if (inspectionReport.inspectionType != inspectionType)
@@ -71,19 +70,9 @@ namespace playground_check_service.Controllers
                     return Ok(result);
                     // Die gesendeten Berichte haben variierende Inspektionsarten.
                 }
-
-                if (inspectionReport.playdeviceDateOfService == null)
-                {
-                    result.errorMessage = "SPK-1";
-                    return Ok(result);
-                    // Es wurden Kontrollberichte ohne Inspektionsdatum geliefert.
-                }
-                if (inspectionReport.playdeviceFid > 0 && !playdeviceDates.ContainsKey(inspectionReport.playdeviceFid))
-                {
-                    playdeviceDates.Add(inspectionReport.playdeviceFid,
-                                    inspectionReport.playdeviceDateOfService);
-                }
             }
+
+            NpgsqlDate dateOfService = (NpgsqlDate) DateTime.Now;
 
             using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
             {
@@ -95,7 +84,7 @@ namespace playground_check_service.Controllers
                         int inspectionTid = -1;
 
                         inspectionTid = writeInspection(inspectionReports[0],
-                                            userFromDb, pgConn, dryRun);
+                                            dateOfService, userFromDb, pgConn, dryRun);
 
                         NpgsqlCommand selectIfCanBeChecked;
                         bool canBeChecked;
@@ -121,12 +110,8 @@ namespace playground_check_service.Controllers
                             }
 
                             if (canBeChecked)
-                            {
                                 WriteInspectionReport(inspectionTid, inspectionReport,
-                                                userFromDb, pgConn, dryRun);
-
-                            }
-
+                                            dateOfService, userFromDb, pgConn, dryRun);
                         }
                         trans.Commit();
                         return Ok(result); // return empty error message (success)
@@ -152,7 +137,7 @@ namespace playground_check_service.Controllers
         }
 
         private static int writeInspection(InspectionReport exampleInspectionReport,
-                    User userFromDb, NpgsqlConnection pgConn, bool dryRun)
+                    NpgsqlDate dateOfService, User userFromDb, NpgsqlConnection pgConn, bool dryRun)
         {
             int inspectorFid = -1;
             int inspectionTypeId = -1;
@@ -211,7 +196,6 @@ namespace playground_check_service.Controllers
                         inspectionTypeId != -1 ? inspectionTypeId : DBNull.Value);
             insertInspectionCommand.Parameters.AddWithValue("fid_spielplatz",
                         playgroundFid != -1 ? playgroundFid : DBNull.Value);
-            NpgsqlDate dateOfService = (NpgsqlDate)exampleInspectionReport.playdeviceDateOfService;
             insertInspectionCommand.Parameters.AddWithValue("datum_inspektion", dateOfService);
             insertInspectionCommand.Parameters.AddWithValue("fid_kontrolleur",
                         inspectorFid != -1 ? inspectorFid : DBNull.Value);
@@ -223,7 +207,7 @@ namespace playground_check_service.Controllers
         }
 
         private static void WriteInspectionReport(int inspectionTid, InspectionReport inspectionReport,
-                    User userFromDb, NpgsqlConnection pgConn, bool dryRun)
+                    NpgsqlDate dateOfService, User userFromDb, NpgsqlConnection pgConn, bool dryRun)
         {
             NpgsqlCommand insertInspectionReportCommand;
             insertInspectionReportCommand = pgConn.CreateCommand();
@@ -243,7 +227,6 @@ namespace playground_check_service.Controllers
             insertInspectionReportCommand.Parameters.AddWithValue("fid_geraet_detail",
                             inspectionReport.playdeviceDetailFid != 0 ? inspectionReport.playdeviceDetailFid : DBNull.Value);
             insertInspectionReportCommand.Parameters.AddWithValue("inspektionsart", inspectionReport.inspectionType);
-            NpgsqlDate dateOfService = (NpgsqlDate)inspectionReport.playdeviceDateOfService;
             insertInspectionReportCommand.Parameters.AddWithValue("datum_inspektion", dateOfService);
             insertInspectionReportCommand.Parameters.AddWithValue("kontrolleur", userFromDb.firstName + " " + userFromDb.lastName);
             if (string.IsNullOrWhiteSpace(inspectionReport.inspectionText))

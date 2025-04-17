@@ -343,8 +343,22 @@ namespace playground_check_service.Controllers
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
                 if (name != null)
                 {
-                    selectComm.CommandText = "SELECT fid, name, inspektion_aussetzen_von, inspektion_aussetzen_bis " +
-                        "FROM \"wgr_sp_spielplatz\" WHERE name=@name";
+                    selectComm.CommandText = @"SELECT sp.fid,
+                               sp.name,
+                               sp.inspektion_aussetzen_von,
+                               sp.inspektion_aussetzen_bis,
+                               insp.datum_inspektion
+                        FROM ""wgr_sp_spielplatz"" sp
+                        LEFT JOIN (
+                            SELECT fid_spielplatz, MAX(datum_inspektion) AS max_datum
+                            FROM ""wgr_sp_inspektion""
+                            GROUP BY fid_spielplatz
+                        ) insp_max ON insp_max.fid_spielplatz = sp.fid
+                        LEFT JOIN ""wgr_sp_inspektion"" insp
+                               ON insp.fid_spielplatz = insp_max.fid_spielplatz
+                              AND insp.datum_inspektion = insp_max.max_datum
+                        WHERE sp.name = @name
+                        LIMIT 1";
                     selectComm.Parameters.AddWithValue("name", name);
                 }
                 else
@@ -369,6 +383,11 @@ namespace playground_check_service.Controllers
                     {
                         NpgsqlDate suspendInspectionTo = reader.GetDate(3);
                         currentPlayground.suspendInspectionTo = (DateTime)suspendInspectionTo;
+                    }
+                    if (!reader.IsDBNull(4))
+                    {
+                        NpgsqlDate dateOfLastInspection = reader.GetDate(4);
+                        currentPlayground.dateOfLastInspection = (DateTime)dateOfLastInspection;
                     }
 
                     _CalculateValueIsInspectionSuspended(currentPlayground);
