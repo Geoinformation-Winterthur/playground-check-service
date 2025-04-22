@@ -457,41 +457,46 @@ namespace playground_check_service.Controllers
                     List<PlaydeviceFeature> currentPlaydevices = new List<PlaydeviceFeature>();
                     while (reader.Read())
                     {
-                        currentPlaydevice = new PlaydeviceFeature();
-                        currentPlaydevice.properties.fid = reader.GetInt32(0);
-                        currentPlaydevice.properties.comment = reader.IsDBNull(1) ? "" : reader.GetString(1);
 
-                        Point pointFromDb = reader[2] as Point;
-                        Model.Geometry geometry
-                                    = new Model.Geometry(
-                                        Model.Geometry.Type.Point,
-                                        new double[] { pointFromDb.Coordinate.X, pointFromDb.Coordinate.Y });
-                        currentPlaydevice.geometry = geometry;
+                        bool notToBeChecked = reader.IsDBNull(9) ? false : reader.GetBoolean(9);
 
-                        currPlaydeviceType = new PlaydeviceFeatureProperties.Type();
-                        currPlaydeviceType.name = reader.IsDBNull(3) ? "" : reader.GetString(3);
-                        currPlaydeviceType.description = reader.IsDBNull(4) ? "" : reader.GetString(4);
-                        currPlaydeviceType.standard = reader.IsDBNull(5) ? "" : reader.GetString(5);
-                        currentPlaydevice.properties.type = currPlaydeviceType;
-
-                        currentPlaydevice.properties.supplier = reader.IsDBNull(6) ? "" : reader.GetString(6);
-                        if (!reader.IsDBNull(7)) currentPlaydevice.properties.recommendedYearOfRenovation = reader.GetInt32(7);
-                        currentPlaydevice.properties.commentRecommendedYearOfRenovation = reader.IsDBNull(8) ? "" : reader.GetString(8);
-
-                        currentPlaydevice.properties.notToBeChecked = reader.IsDBNull(9) ? false : reader.GetBoolean(9);
-                        currentPlaydevice.properties.cannotBeChecked = reader.IsDBNull(10) ? false : reader.GetBoolean(10);
-                        currentPlaydevice.properties.cannotBeCheckedReason = reader.IsDBNull(11) ? "" : reader.GetString(11);
-
-                        if (!reader.IsDBNull(12))
+                        if (!notToBeChecked)
                         {
-                            NpgsqlDate constructionDate = reader.GetDate(12);
-                            currentPlaydevice.properties.constructionDate = (DateTime)constructionDate;
+                            currentPlaydevice = new PlaydeviceFeature();
+                            currentPlaydevice.properties.fid = reader.GetInt32(0);
+                            currentPlaydevice.properties.comment = reader.IsDBNull(1) ? "" : reader.GetString(1);
+
+                            Point pointFromDb = reader[2] as Point;
+                            Model.Geometry geometry
+                                        = new Model.Geometry(
+                                            Model.Geometry.Type.Point,
+                                            new double[] { pointFromDb.Coordinate.X, pointFromDb.Coordinate.Y });
+                            currentPlaydevice.geometry = geometry;
+
+                            currPlaydeviceType = new PlaydeviceFeatureProperties.Type();
+                            currPlaydeviceType.name = reader.IsDBNull(3) ? "" : reader.GetString(3);
+                            currPlaydeviceType.description = reader.IsDBNull(4) ? "" : reader.GetString(4);
+                            currPlaydeviceType.standard = reader.IsDBNull(5) ? "" : reader.GetString(5);
+                            currentPlaydevice.properties.type = currPlaydeviceType;
+
+                            currentPlaydevice.properties.supplier = reader.IsDBNull(6) ? "" : reader.GetString(6);
+                            if (!reader.IsDBNull(7)) currentPlaydevice.properties.recommendedYearOfRenovation = reader.GetInt32(7);
+                            currentPlaydevice.properties.commentRecommendedYearOfRenovation = reader.IsDBNull(8) ? "" : reader.GetString(8);
+
+                            currentPlaydevice.properties.cannotBeChecked = reader.IsDBNull(10) ? false : reader.GetBoolean(10);
+                            currentPlaydevice.properties.cannotBeCheckedReason = reader.IsDBNull(11) ? "" : reader.GetString(11);
+
+                            if (!reader.IsDBNull(12))
+                            {
+                                NpgsqlDate constructionDate = reader.GetDate(12);
+                                currentPlaydevice.properties.constructionDate = (DateTime)constructionDate;
+                            }
+
+                            if (!reader.IsDBNull(13))
+                                currentPlaydevice.properties.renovationType = reader.GetInt32(13);
+
+                            currentPlaydevices.Add(currentPlaydevice);
                         }
-
-                        if (!reader.IsDBNull(13))
-                            currentPlaydevice.properties.renovationType = reader.GetInt32(13);
-
-                        currentPlaydevices.Add(currentPlaydevice);
                     }
                     result = currentPlaydevices.ToArray();
                 }
@@ -546,7 +551,8 @@ namespace playground_check_service.Controllers
                     using (NpgsqlDataReader reader = selectInspectionComm.ExecuteReader())
                     {
                         int currInspectionTid = -1;
-                        if(reader.Read()){
+                        if (reader.Read())
+                        {
                             InspectionReport inspectionReport = readInspectionReport(reader);
                             nextToLastInspectionReports.Add(inspectionReport);
                             currInspectionTid = inspectionReport.tidInspection;
