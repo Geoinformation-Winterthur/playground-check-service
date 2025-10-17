@@ -108,73 +108,101 @@ namespace playground_check_service.Controllers
         // GET Defect/Picture/3736373?thumb=true
         [HttpGet]
         [Route("/Defect/Picture/{tid}")]
-        public IActionResult GetPicture(int tid, bool thumb, bool dryrun = false)
+        public IActionResult GetPicture(int tid, bool thumb = false, bool dryRun = false)
         {
             try
             {
+                if (dryRun) return Ok();
+
                 byte[]? pictureData = null;
-                string mimeType = "image/png"; // Fallback-MIME-Typ
+                string? mimeType = null;
 
                 using var pgConn = new NpgsqlConnection(AppConfig.connectionString);
                 pgConn.Open();
 
+                var column = thumb ? "picture_base64_thumb" : "picture_base64";
 
+                using var cmd = pgConn.CreateCommand();
+                cmd.CommandText = $@"SELECT {column}
+                             FROM ""wgr_sp_insp_mangel_foto""
+                             WHERE tid = @tid";
+                cmd.Parameters.AddWithValue("tid", tid);
 
-                NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
-                string pictureAttribute = "";
-                if (thumb)
-                    pictureAttribute = "picture_base64_thumb";
-                else
-                    pictureAttribute = "picture_base64";
+                using var reader = cmd.ExecuteReader();
+                if (!reader.Read() || reader.IsDBNull(0))
+                    return NotFound("Kein Bild vorhanden.");
 
-                selectDefectsCommand.CommandText = @$"SELECT {pictureAttribute}
-                                FROM ""wgr_sp_insp_mangel_foto""
-                                WHERE tid={tid}";
-
-                if (dryrun) return Ok();
-
-                using (NpgsqlDataReader reader = selectDefectsCommand.ExecuteReader())
+                // 1) BYTEA?
+                if (reader.GetFieldType(0) == typeof(byte[]))
                 {
-                    if (reader.Read())
+                    var bytes = reader.GetFieldValue<byte[]>(0);
+
+                    // a) Sieht nach druckbarem Text aus? (kann Base64, data:-URL ODER Hexstring sein)
+                    var looksLikeText = bytes.Length > 0 &&
+                        bytes.Take(Math.Min(bytes.Length, 128)).All(b =>
+                            (b >= 0x20 && b <= 0x7E) || b is (byte)'\r' or (byte)'\n' or (byte)'\t');
+
+                    if (!looksLikeText)
                     {
-                        string base64String = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                        // → Echte Rohbytes des Bildes
+                        pictureData = bytes;
+                    }
+                    else
+                    {
+                        // → Text rekonstruieren
+                        var text = System.Text.Encoding.UTF8.GetString(bytes).Trim();
 
-                        // Prüfe auf data:image/...-Prefix
-                        if (base64String.StartsWith("data:"))
+                        // b) Falls es ein Hexstring ist (wie im Beispiel "64617461…"): erst aus Hex zu Bytes
+                        if (IsLikelyHexString(text))
                         {
-                            // Beispiel: data:image/jpeg;base64,/9j/4AAQSk...
-                            int commaIndex = base64String.IndexOf(',');
-                            if (commaIndex > 0)
-                            {
-                                // MIME-Typ extrahieren
-                                int semicolonIndex = base64String.IndexOf(';');
-                                if (semicolonIndex > 5)
-                                {
-                                    mimeType = base64String.Substring(5, semicolonIndex - 5); // z. B. image/jpeg
-                                }
+                            var hexBytes = HexToBytes(text);
+                            // Hex enthielt vermutlich den UTF-8-Text "data:image/...;base64,..."
+                            text = System.Text.Encoding.UTF8.GetString(hexBytes).Trim();
+                        }
 
-                                // Base64-Inhalt extrahieren (alles nach dem Komma)
-                                string base64Content = base64String.Substring(commaIndex + 1);
-                                pictureData = Convert.FromBase64String(base64Content);
-                            }
+                        // c) Jetzt versuchen: data:-URL → Bildbytes
+                        if (TryDecodeDataUrl(text, out var fromDataUrl, out var mt))
+                        {
+                            pictureData = fromDataUrl;
+                            mimeType = mt; // aus data:-Prefix
                         }
                         else
                         {
-                            // Falls kein Prefix: Direkt dekodieren
-                            pictureData = Convert.FromBase64String(base64String);
+                            // d) Sonst: purer Base64-String?
+                            if (TryBase64Decode(text, out var fromB64))
+                                pictureData = fromB64;
                         }
+                    }
+                }
+                else
+                {
+                    // 2) TEXT/VARCHAR
+                    var text = reader.GetString(0)?.Trim() ?? string.Empty;
 
-                        if (pictureData == null || pictureData.Length == 0)
-                        {
-                            return NotFound("Kein Bild vorhanden.");
-                        }
+                    if (IsLikelyHexString(text))
+                    {
+                        var hexBytes = HexToBytes(text);
+                        text = System.Text.Encoding.UTF8.GetString(hexBytes).Trim();
+                    }
 
-
-                        return File(pictureData, mimeType);
+                    if (TryDecodeDataUrl(text, out var fromDataUrl, out var mt))
+                    {
+                        pictureData = fromDataUrl;
+                        mimeType = mt;
+                    }
+                    else if (TryBase64Decode(text, out var fromB64))
+                    {
+                        pictureData = fromB64;
                     }
                 }
 
+                if (pictureData == null || pictureData.Length == 0)
+                    return NotFound("Kein Bild vorhanden.");
 
+                // Falls kein MIME aus data:-Prefix: versuche Erkennung aus Bytes
+                mimeType ??= DetectMimeFromHeader(pictureData) ?? "application/octet-stream";
+
+                return File(pictureData, mimeType);
             }
             catch (FormatException ex)
             {
@@ -184,7 +212,105 @@ namespace playground_check_service.Controllers
             {
                 return StatusCode(500, $"Fehler beim Laden des Bildes: {ex.Message}");
             }
-            return StatusCode(500, $"Unbekannter Fehler beim Laden des Bildes.");
+        }
+
+        // --- Helper ---
+
+        // data:image/<mt>;base64,<payload>
+        private static bool TryDecodeDataUrl(string text, out byte[] bytes, out string? mimeType)
+        {
+            bytes = Array.Empty<byte>();
+            mimeType = null;
+
+            if (!text.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var comma = text.IndexOf(',');
+            var semi = text.IndexOf(';');
+            if (comma <= 0 || semi <= 5) return false;
+
+            mimeType = text.Substring(5, semi - 5).Trim(); // z. B. image/png
+            var payload = text[(comma + 1)..].Trim();
+
+            // Manche Ketten verlieren '+' → ' ' (z. B. via WWW-Form-Urlencoded). Reparieren:
+            payload = payload.Replace(' ', '+');
+
+            if (!TryBase64Decode(payload, out var data)) return false;
+            bytes = data;
+            return true;
+        }
+
+        private static bool TryBase64Decode(string s, out byte[] data)
+        {
+            data = Array.Empty<byte>();
+            if (string.IsNullOrWhiteSpace(s)) return false;
+
+            // Entferne übliche Noise-Zeichen
+            var cleaned = s.Trim();
+
+            // Wenn es wie Hex aussieht, nicht als Base64 versuchen
+            if (IsLikelyHexString(cleaned)) return false;
+
+            // Padding tolerant ergänzen
+            var mod = cleaned.Length % 4;
+            if (mod != 0) cleaned = cleaned.PadRight(cleaned.Length + (4 - mod), '=');
+
+            try
+            {
+                data = Convert.FromBase64String(cleaned);
+                return data.Length > 0;
+            }
+            catch { return false; }
+        }
+
+        private static bool IsLikelyHexString(string s)
+        {
+            // Sehr lang, nur 0-9A-Fa-f, gerade Länge → wahrscheinlich Hexdump
+            if (string.IsNullOrWhiteSpace(s) || (s.Length % 2) != 0) return false;
+            if (s.Length < 16) return false;
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (!((c >= '0' && c <= '9') ||
+                      (c >= 'a' && c <= 'f') ||
+                      (c >= 'A' && c <= 'F')))
+                    return false;
+            }
+            return true;
+        }
+
+        private static byte[] HexToBytes(string hex)
+        {
+            var len = hex.Length / 2;
+            var bytes = new byte[len];
+            for (int i = 0; i < len; i++)
+                bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+            return bytes;
+        }
+
+        // Signaturen (PNG, JPEG, GIF, WebP)
+        private static string? DetectMimeFromHeader(byte[] bytes)
+        {
+            if (bytes.Length >= 8 &&
+                bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 &&
+                bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A)
+                return "image/png";
+
+            if (bytes.Length >= 3 &&
+                bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
+                return "image/jpeg";
+
+            if (bytes.Length >= 6 &&
+                bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38 &&
+                (bytes[4] == 0x39 || bytes[4] == 0x37) && bytes[5] == 0x61)
+                return "image/gif";
+
+            if (bytes.Length >= 12 &&
+                System.Text.Encoding.ASCII.GetString(bytes, 0, 4) == "RIFF" &&
+                System.Text.Encoding.ASCII.GetString(bytes, 8, 4) == "WEBP")
+                return "image/webp";
+
+            return null;
         }
 
         // PUT Defect/Picture/3736373
