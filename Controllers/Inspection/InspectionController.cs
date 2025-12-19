@@ -293,7 +293,7 @@ namespace playground_check_service.Controllers
 
             NpgsqlCommand selectTargetDateComm;
             selectTargetDateComm = pgConn.CreateCommand();
-            selectTargetDateComm.CommandText = "SELECT " + inspectionAttrName +
+            selectTargetDateComm.CommandText = "SELECT (" + inspectionAttrName + ")::date" +
                         " FROM \"wgr_sp_spielplatz\"" +
                         " WHERE fid = @playground_fid";
             selectTargetDateComm.Parameters
