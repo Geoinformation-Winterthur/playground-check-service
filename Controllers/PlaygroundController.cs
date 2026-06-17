@@ -716,7 +716,8 @@ namespace playground_check_service.Controllers
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
                 selectComm.CommandText = "SELECT fid " +
                             "FROM \"wgr_sp_abnahmen\" " +
-                            "WHERE fid_spielplatz=@fid_spielplatz";
+                            "WHERE fid_spielplatz=@fid_spielplatz " +
+                            "AND abnahmedokument IS NOT NULL";
                 selectComm.Parameters.AddWithValue("fid_spielplatz", spielplatzFid);
 
                 using (NpgsqlDataReader reader = selectComm.ExecuteReader())
@@ -743,7 +744,8 @@ namespace playground_check_service.Controllers
                 NpgsqlCommand selectComm = pgConn.CreateCommand();
                 selectComm.CommandText = "SELECT fid " +
                             "FROM \"wgr_sp_zertifikat\" " +
-                            "WHERE fid_spielplatz=@fid_spielplatz";
+                            "WHERE fid_spielplatz=@fid_spielplatz " +
+                            "AND zertifikatsdokument IS NOT NULL";
                 selectComm.Parameters.AddWithValue("fid_spielplatz", spielplatzFid);
 
                 using (NpgsqlDataReader reader = selectComm.ExecuteReader())
