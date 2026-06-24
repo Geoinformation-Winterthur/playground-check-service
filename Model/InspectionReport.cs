@@ -9,7 +9,7 @@ namespace playground_check_service.Model
     {
         public int tid { get; set; }
         public string inspectionType { get; set; } = "";
-        public DateTime dateOfService{ get; set; }
+        public DateTime? dateOfService{ get; set; }
         public string inspector { get; set; } = "";
         public string inspectionText { get; set; } = "";
         public bool inspectionDone { get; set; }
@@ -23,6 +23,6 @@ namespace playground_check_service.Model
         public int playdeviceDetailFid { get; set; }
 
         public int tidInspection { get; set; }
-        public DateTime playdeviceDateOfService { get; set; }
+        public DateTime? playdeviceDateOfService { get; set; }
     }
 }
