@@ -10,10 +10,10 @@ using System.Text;
 using Prometheus;
 using Npgsql;
 using Microsoft.OpenApi.Models;
+using playground_check_service.Services;
+using playground_check_service.Logging;
 
-Log.Logger = new LoggerConfiguration()
-            .ReadFrom.Configuration(AppConfig.Configuration)
-            .CreateLogger();
+Log.Logger = CreateLogger();
 
 try
 {
@@ -53,6 +53,7 @@ try
         });
 
     builder.Services.AddControllers();
+    builder.Services.AddScoped<PushNotificationService>();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options => {
         string serviceDescription = AppConfig.Configuration.GetValue<string>("ServiceDescription");
@@ -151,4 +152,47 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+static Serilog.ILogger CreateLogger()
+{
+    string aspNetEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+        ?? "Production";
+    bool isDevelopment = string.Equals(aspNetEnvironment, "Development",
+        StringComparison.OrdinalIgnoreCase);
+
+    LoggerConfiguration loggerConfiguration = new LoggerConfiguration()
+        .MinimumLevel.Information()
+        .Enrich.FromLogContext();
+
+    if (isDevelopment)
+    {
+        // In DEV the existing local logging configuration remains active.
+        return loggerConfiguration
+            .ReadFrom.Configuration(AppConfig.Configuration)
+            .CreateLogger();
+    }
+
+    string? elkUrl = AppConfig.Configuration.GetValue<string>("ELK:Url");
+    if (!string.IsNullOrWhiteSpace(elkUrl))
+    {
+        bool verifySsl = AppConfig.Configuration.GetValue<bool?>("ELK:VerifySsl") ?? true;
+        string environment = AppConfig.Configuration.GetValue<string>("ELK:Environment")
+            ?? aspNetEnvironment.ToLowerInvariant();
+        string directory = AppConfig.Configuration.GetValue<string>("ELK:Directory")
+            ?? AppContext.BaseDirectory;
+        string service = AppConfig.Configuration.GetValue<string>("ELK:Service")
+            ?? "playground-check-service";
+        string hostname = Environment.MachineName;
+
+        return loggerConfiguration
+            .WriteTo.Sink(new ElkLogSink(elkUrl, verifySsl, environment,
+                directory, service, hostname))
+            .CreateLogger();
+    }
+
+    // Fallback only if ELK is not configured, so logging is not lost accidentally.
+    return loggerConfiguration
+        .ReadFrom.Configuration(AppConfig.Configuration)
+        .CreateLogger();
 }

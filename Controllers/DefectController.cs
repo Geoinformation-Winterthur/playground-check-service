@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using playground_check_service.Configuration;
 using playground_check_service.Model;
+using playground_check_service.Services;
 
 namespace playground_check_service.Controllers
 {
@@ -23,10 +24,13 @@ namespace playground_check_service.Controllers
     public class DefectController : ControllerBase
     {
         private readonly ILogger<DefectController> _logger;
+        private readonly PushNotificationService _pushNotificationService;
 
-        public DefectController(ILogger<DefectController> logger)
+        public DefectController(ILogger<DefectController> logger,
+                    PushNotificationService pushNotificationService)
         {
             _logger = logger;
+            _pushNotificationService = pushNotificationService;
         }
 
         // GET defect/
@@ -75,7 +79,7 @@ namespace playground_check_service.Controllers
         // PUT defect/?inspectiontid=...
         [HttpPut]
         [Authorize]
-        public ActionResult<Defect> Put([FromBody] Defect defect, bool dryRun = false)
+        public async Task<ActionResult<Defect>> Put([FromBody] Defect defect, bool dryRun = false)
         {
             User userFromDb = LoginController.getAuthorizedUser(this.User, dryRun);
             if (userFromDb == null || userFromDb.fid == 0)
@@ -90,6 +94,14 @@ namespace playground_check_service.Controllers
                 {
                     DefectDAO defectDao = new DefectDAO();
                     defectDao.Insert(defect, userFromDb, dryRun);
+                    if (defect.responsibleUserFid > 0 && defect.tid > 0)
+                    {
+                        User assignedUser = defectDao.ReadActiveUserByFid(defect.responsibleUserFid);
+                        if (assignedUser != null)
+                        {
+                            await _pushNotificationService.SendDefectAssignedNotificationAsync(defect, assignedUser);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -103,6 +115,49 @@ namespace playground_check_service.Controllers
                 errorMessage.errorMessage = "SPK-4";
             }
             return Ok(defect);
+        }
+
+
+        // POST /defect/8800/accept
+        [HttpPost]
+        [Route("{tid}/accept")]
+        [Authorize]
+        public ActionResult<ErrorMessage> AcceptAssignment(int tid, [FromBody] Defect? defect = null, bool dryRun = false)
+        {
+            return SetAssignmentStatus(tid, true, defect?.assignmentComment ?? "", dryRun);
+        }
+
+        // POST /defect/8800/reject
+        [HttpPost]
+        [Route("{tid}/reject")]
+        [Authorize]
+        public ActionResult<ErrorMessage> RejectAssignment(int tid, [FromBody] Defect? defect = null, bool dryRun = false)
+        {
+            return SetAssignmentStatus(tid, false, defect?.assignmentComment ?? "", dryRun);
+        }
+
+        private ActionResult<ErrorMessage> SetAssignmentStatus(int tid, bool accepted, string comment, bool dryRun)
+        {
+            ErrorMessage result = new();
+            User userFromDb = LoginController.getAuthorizedUser(this.User, dryRun);
+            if (userFromDb == null || userFromDb.fid == 0)
+            {
+                return Unauthorized("Sie sind entweder nicht als Kontrolleur in der " +
+                    "Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung.");
+            }
+
+            try
+            {
+                DefectDAO defectDao = new();
+                bool changed = defectDao.SetAssignmentStatus(tid, userFromDb, accepted, comment, dryRun);
+                if (!changed) result.errorMessage = "SPK-3";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not update defect assignment status.");
+                result.errorMessage = "SPK-3";
+            }
+            return Ok(result);
         }
 
         // GET Defect/Picture/3736373?thumb=true

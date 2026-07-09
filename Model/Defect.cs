@@ -17,5 +17,11 @@ public class Defect
     public DateTime? dateDone { get; set; }
     public string defectComment { get; set; } = "";
     public int defectsResponsibleBodyId { get; set; } = -1;
+    public int responsibleUserFid { get; set; } = -1;
+    public string assignmentStatus { get; set; } = "";
+    public DateTime? dateAssignmentCreated { get; set; }
+    public DateTime? dateAssignmentAccepted { get; set; }
+    public DateTime? dateAssignmentRejected { get; set; }
+    public string assignmentComment { get; set; } = "";
     public string errorMessage { get; set; } = "";
 }

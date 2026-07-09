@@ -38,7 +38,7 @@ public class UsersController : ControllerBase
         {
             pgConn.Open();
             NpgsqlCommand selectComm = pgConn.CreateCommand();
-            selectComm.CommandText = @"SELECT nachname, vorname,
+            selectComm.CommandText = @"SELECT fid, nachname, vorname,
                                     trim(lower(e_mail)), aktiv, rolle, is_new
                                 FROM ""wgr_sp_kontrolleur""";
 
@@ -60,19 +60,20 @@ public class UsersController : ControllerBase
                 while (reader.Read())
                 {
                     userFromDb = new User();
+                    userFromDb.fid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0);
                     userFromDb.mailAddress =
-                            reader.IsDBNull(2) ? "" :
-                                    reader.GetString(2).ToLower().Trim();
+                            reader.IsDBNull(3) ? "" :
+                                    reader.GetString(3).ToLower().Trim();
                     if (userFromDb.mailAddress != null && userFromDb.mailAddress != "")
                     {
-                        userFromDb.lastName = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                        userFromDb.lastName = reader.IsDBNull(1) ? "" : reader.GetString(1);
                         userFromDb.lastName = userFromDb.lastName.Trim();
-                        userFromDb.firstName = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                        userFromDb.firstName = reader.IsDBNull(2) ? "" : reader.GetString(2);
                         userFromDb.firstName = userFromDb.firstName.Trim();
 
-                        userFromDb.active = reader.IsDBNull(3) ? false : reader.GetBoolean(3);
-                        userFromDb.role = reader.IsDBNull(4) ? "" : reader.GetString(4);
-                        userFromDb.isNew = reader.IsDBNull(5) ? false : reader.GetBoolean(5);
+                        userFromDb.active = reader.IsDBNull(4) ? false : reader.GetBoolean(4);
+                        userFromDb.role = reader.IsDBNull(5) ? "" : reader.GetString(5);
+                        userFromDb.isNew = reader.IsDBNull(6) ? false : reader.GetBoolean(6);
 
                         usersFromDb.Add(userFromDb);
                     }
@@ -83,6 +84,46 @@ public class UsersController : ControllerBase
 
         return usersFromDb.ToArray<User>();
     }
+
+
+    // GET /account/users/assignable
+    [HttpGet]
+    [Route("Assignable")]
+    [Authorize]
+    public ActionResult<User[]> GetAssignableUsers()
+    {
+        List<User> usersFromDb = new();
+        using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+        {
+            pgConn.Open();
+            NpgsqlCommand selectComm = pgConn.CreateCommand();
+            selectComm.CommandText = @"SELECT fid, nachname, vorname, trim(lower(e_mail)), aktiv, rolle, is_new
+                                FROM ""wgr_sp_kontrolleur""
+                                WHERE aktiv = true
+                                ORDER BY vorname, nachname";
+
+            using (NpgsqlDataReader reader = selectComm.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    usersFromDb.Add(new User
+                    {
+                        fid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0),
+                        lastName = reader.IsDBNull(1) ? "" : reader.GetString(1).Trim(),
+                        firstName = reader.IsDBNull(2) ? "" : reader.GetString(2).Trim(),
+                        mailAddress = reader.IsDBNull(3) ? "" : reader.GetString(3).ToLower().Trim(),
+                        active = reader.IsDBNull(4) ? false : reader.GetBoolean(4),
+                        role = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                        isNew = reader.IsDBNull(6) ? false : reader.GetBoolean(6),
+                        passPhrase = ""
+                    });
+                }
+            }
+            pgConn.Close();
+        }
+        return Ok(usersFromDb.ToArray());
+    }
+
 
     // PUT /account/users/?changepassphrase=false
     [HttpPut]
