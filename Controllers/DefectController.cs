@@ -118,6 +118,28 @@ namespace playground_check_service.Controllers
         }
 
 
+        // POST /defect/8800/infomail-sent
+        [HttpPost]
+        [Route("{tid}/infomail-sent")]
+        [Authorize]
+        public ActionResult<Defect> MarkInfoMailSent(int tid, bool dryRun = false)
+        {
+            User userFromDb = LoginController.getAuthorizedUser(this.User, dryRun);
+            if (userFromDb == null || userFromDb.fid == 0)
+            {
+                return Unauthorized("Sie sind entweder nicht als Kontrolleur in der " +
+                    "Spielplatzkontrolle-Datenbank erfasst oder Sie haben keine Zugriffsberechtigung.");
+            }
+
+            DefectDAO defectDao = new DefectDAO();
+            Defect updatedDefect = defectDao.MarkInfoMailSent(tid, dryRun);
+            if (updatedDefect == null)
+            {
+                return BadRequest("Die Infomail konnte nicht protokolliert werden.");
+            }
+            return Ok(updatedDefect);
+        }
+
         // POST /defect/8800/accept
         [HttpPost]
         [Route("{tid}/accept")]

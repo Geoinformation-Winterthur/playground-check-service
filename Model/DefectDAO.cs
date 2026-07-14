@@ -148,6 +148,30 @@ namespace playground_check_service.Model
             return result;
         }
 
+
+        internal Defect MarkInfoMailSent(int defectTid, bool dryRun = false)
+        {
+            if (defectTid <= 0) return null;
+
+            using NpgsqlConnection pgConn = new(AppConfig.connectionString);
+            pgConn.Open();
+
+            if (!dryRun)
+            {
+                using NpgsqlCommand command = pgConn.CreateCommand();
+                command.CommandText = @"UPDATE ""wgr_sp_insp_mangel"" mangel
+                    SET infomail_gesendet_am = CURRENT_TIMESTAMP,
+                        infomail_empfaenger = TRIM(CONCAT(kontrolleur.vorname, ' ', kontrolleur.nachname))
+                    FROM ""wgr_sp_kontrolleur"" kontrolleur
+                    WHERE mangel.tid = @tid
+                      AND kontrolleur.fid = mangel.fid_zustaendig_kontrolleur";
+                command.Parameters.AddWithValue("tid", defectTid);
+                if (command.ExecuteNonQuery() != 1) return null;
+            }
+
+            return Read(defectTid);
+        }
+
         internal bool SetAssignmentStatus(int defectTid, User userFromDb, bool accepted, string comment, bool dryRun)
         {
             if (dryRun) return true;
@@ -186,11 +210,11 @@ namespace playground_check_service.Model
         private NpgsqlCommand _CreateCommandForSelectByPlaydevice(int playdeviceFid, NpgsqlConnection pgConn)
         {
             NpgsqlCommand selectDefectsCommand = pgConn.CreateCommand();
-            selectDefectsCommand.CommandText = "SELECT tid, id_dringlichkeit, beschrieb, " +
+            selectDefectsCommand.CommandText = "SELECT tid, fid_spielgeraet, id_dringlichkeit, beschrieb, " +
                     "datum_erledigung, fid_erledigung, bemerkunng, datum, " +
                     "id_zustaendig_behebung, fid_zustaendig_kontrolleur, auftrag_status, " +
                     "datum_auftrag_zugewiesen, datum_auftrag_angenommen, datum_auftrag_abgelehnt, " +
-                    "bemerkung_auftrag " +
+                    "bemerkung_auftrag, infomail_gesendet_am, infomail_empfaenger " +
                     "FROM \"wgr_sp_insp_mangel\" " +
                     "WHERE fid_spielgeraet=@playdeviceFid" +
                     " AND datum_erledigung IS NULL";
@@ -209,11 +233,11 @@ namespace playground_check_service.Model
         private NpgsqlCommand _CreateCommandForSelect(int tid, NpgsqlConnection pgConn)
         {
             NpgsqlCommand selectDefectCommand = pgConn.CreateCommand();
-            selectDefectCommand.CommandText = "SELECT tid, id_dringlichkeit, beschrieb, " +
+            selectDefectCommand.CommandText = "SELECT tid, fid_spielgeraet, id_dringlichkeit, beschrieb, " +
                     "datum_erledigung, fid_erledigung, bemerkunng, datum, " +
                     "id_zustaendig_behebung, fid_zustaendig_kontrolleur, auftrag_status, " +
                     "datum_auftrag_zugewiesen, datum_auftrag_angenommen, datum_auftrag_abgelehnt, " +
-                    "bemerkung_auftrag " +
+                    "bemerkung_auftrag, infomail_gesendet_am, infomail_empfaenger " +
                     "FROM \"wgr_sp_insp_mangel\" " +
                     "WHERE tid=@tid";
             selectDefectCommand.Parameters.AddWithValue("tid", tid);
@@ -226,6 +250,9 @@ namespace playground_check_service.Model
             {
                 tid = reader.IsDBNull(0) ? -1 : reader.GetInt32(0)
             };
+            int playdeviceFidOrdinal = reader.GetOrdinal("fid_spielgeraet");
+            defect.playdeviceFid = reader.IsDBNull(playdeviceFidOrdinal) ? 0 : reader.GetInt32(playdeviceFidOrdinal);
+
             int priorityOrdinal = reader.GetOrdinal("id_dringlichkeit");
             defect.priority = reader.IsDBNull(priorityOrdinal) ? -1 : reader.GetInt32(priorityOrdinal);
             int defectDescriptionOrdinal = reader.GetOrdinal("beschrieb");
@@ -270,6 +297,13 @@ namespace playground_check_service.Model
 
             int assignmentCommentOrdinal = reader.GetOrdinal("bemerkung_auftrag");
             defect.assignmentComment = reader.IsDBNull(assignmentCommentOrdinal) ? "" : reader.GetString(assignmentCommentOrdinal);
+
+            int infoMailSentAtOrdinal = reader.GetOrdinal("infomail_gesendet_am");
+            if (!reader.IsDBNull(infoMailSentAtOrdinal))
+                defect.infoMailSentAt = reader.GetDateTime(infoMailSentAtOrdinal);
+
+            int infoMailRecipientNameOrdinal = reader.GetOrdinal("infomail_empfaenger");
+            defect.infoMailRecipientName = reader.IsDBNull(infoMailRecipientNameOrdinal) ? "" : reader.GetString(infoMailRecipientNameOrdinal);
 
             return defect;
         }
@@ -355,6 +389,14 @@ namespace playground_check_service.Model
                     auftrag_status = @auftrag_status,
                     datum_auftrag_zugewiesen = @datum_auftrag_zugewiesen,
                     bemerkung_auftrag = @bemerkung_auftrag,
+                    infomail_gesendet_am = CASE
+                        WHEN fid_zustaendig_kontrolleur IS DISTINCT FROM @fid_zustaendig_kontrolleur THEN NULL
+                        ELSE infomail_gesendet_am
+                    END,
+                    infomail_empfaenger = CASE
+                        WHEN fid_zustaendig_kontrolleur IS DISTINCT FROM @fid_zustaendig_kontrolleur THEN NULL
+                        ELSE infomail_empfaenger
+                    END,
                     fid_erledigung = @fid_erledigung
                     WHERE tid = @tid";
             updateDefectCommand.Parameters.AddWithValue("tid", defect.tid);

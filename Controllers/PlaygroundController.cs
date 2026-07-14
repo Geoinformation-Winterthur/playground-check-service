@@ -1,4 +1,4 @@
-﻿// <copyright company="Vermessungsamt Winterthur">
+// <copyright company="Vermessungsamt Winterthur">
 //      Author: Edgar Butwilowski
 //      Copyright (c) Vermessungsamt Winterthur. All rights reserved.
 // </copyright>
@@ -166,6 +166,48 @@ namespace playground_check_service.Controllers
                     bool withdefects = false, bool withinspections = false)
         {
             return this.readPlaygroundFromDb(id, null, inspectionType, withdefects, withinspections);
+        }
+
+        // GET Playground/byplaydevice/87847
+        // Returns the playground context required for a single playdevice.
+        [Route("/Playground/byplaydevice/{playdeviceFid}")]
+        [HttpGet]
+        [Authorize]
+        public Playground GetByPlaydeviceFid(int playdeviceFid)
+        {
+            Playground result = new Playground();
+            if (playdeviceFid <= 0)
+            {
+                return result;
+            }
+
+            using (NpgsqlConnection pgConn = new NpgsqlConnection(AppConfig.connectionString))
+            {
+                pgConn.Open();
+                NpgsqlCommand selectComm = pgConn.CreateCommand();
+                selectComm.CommandText = @"SELECT sp.fid, sp.name,
+                           TRIM(CONCAT(COALESCE(sp.strassenname, ''), ' ', COALESCE(sp.hausnummer, ''))) AS adresse
+                    FROM ""gr_v_spielgeraete"" geraet
+                    JOIN ""wgr_sp_spielplatz"" sp ON sp.fid = geraet.fid_spielplatz
+                    WHERE geraet.fid = @playdeviceFid";
+                selectComm.Parameters.AddWithValue("playdeviceFid", playdeviceFid);
+
+                using (NpgsqlDataReader reader = selectComm.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        return result;
+                    }
+                    result.Id = reader.GetInt32(0);
+                    result.name = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                    result.address = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                }
+            }
+
+            result.playdevices = this._ReadPlaydevicesOfPlayground(result.Id)
+                .Where(playdevice => playdevice.properties.fid == playdeviceFid)
+                .ToArray();
+            return result;
         }
 
         // GET Playground/byname?name=...&inspectiontype=Hauptinspektion (HI)

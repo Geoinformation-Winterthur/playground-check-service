@@ -23,5 +23,7 @@ public class Defect
     public DateTime? dateAssignmentAccepted { get; set; }
     public DateTime? dateAssignmentRejected { get; set; }
     public string assignmentComment { get; set; } = "";
+    public DateTime? infoMailSentAt { get; set; }
+    public string infoMailRecipientName { get; set; } = "";
     public string errorMessage { get; set; } = "";
 }
