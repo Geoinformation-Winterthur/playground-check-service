@@ -395,10 +395,10 @@ namespace playground_check_service.Controllers
         [Route("/Defect/Picture/{defectTid}")]
         public IActionResult PutPicture([FromBody] DefectPicture defectPic, int defectTid, bool dryRun = false)
         {
-            if (dryRun) Ok();
+            if (dryRun) return Ok();
 
             using var pgConn = new NpgsqlConnection(AppConfig.connectionString);
-            pgConn.OpenAsync();
+            pgConn.Open();
 
             using var insertDefectPicCommand = pgConn.CreateCommand();
             insertDefectPicCommand.CommandText = @"INSERT INTO ""wgr_sp_insp_mangel_foto"" 
